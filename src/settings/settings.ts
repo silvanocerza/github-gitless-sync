@@ -3,8 +3,8 @@ export interface GitHubSyncSettings {
   githubOwner: string;
   githubRepo: string;
   githubBranch: string;
-  repoContentPath: string;
-  localPath: string;
+  repoContentDir: string;
+  localContentDir: string;
   syncStrategy: "save" | "manual" | "interval";
   syncInterval: number;
 }
@@ -14,8 +14,8 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   githubOwner: "",
   githubRepo: "",
   githubBranch: "main",
-  repoContentPath: "",
-  localPath: "",
+  repoContentDir: "",
+  localContentDir: "",
   syncStrategy: "save",
   syncInterval: 1,
 };

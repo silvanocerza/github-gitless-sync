@@ -88,35 +88,35 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
     containerEl.createEl("h2", { text: "Sync settings" });
 
     new Setting(containerEl)
-      .setName("Repository content path")
+      .setName("Repository content directory")
       .setDesc(
-        `The path to sync, relative to the repository root.
+        `The repository directory to sync, relative to the repository root.
         If not set the whole repository will be synced.`,
       )
       .addText((text) =>
         text
           .setPlaceholder("Exaple: blog/content")
-          .setValue(this.plugin.settings.repoContentPath)
+          .setValue(this.plugin.settings.repoContentDir)
           .onChange(async (value) => {
             // TODO: Change the local path if already fetched
-            this.plugin.settings.repoContentPath = value;
+            this.plugin.settings.repoContentDir = value;
             await this.plugin.saveSettings();
           }),
       );
 
     new Setting(containerEl)
-      .setName("Local path")
+      .setName("Local content directory")
       .setDesc(
-        `The local path to sync, relative to the vault root.
+        `The local directory to sync, relative to the vault root.
         Defaults to the repository name if not set.`,
       )
       .addText((text) =>
         text
           .setPlaceholder("Exaple: folder/blog-posts")
-          .setValue(this.plugin.settings.localPath)
+          .setValue(this.plugin.settings.localContentDir)
           .onChange(async (value) => {
             // TODO: Move the folder if already fetched
-            this.plugin.settings.localPath = value;
+            this.plugin.settings.localContentDir = value;
             await this.plugin.saveSettings();
           }),
       );
