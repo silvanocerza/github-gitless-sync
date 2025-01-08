@@ -1,4 +1,4 @@
-import { Vault, TFile } from "obsidian";
+import { Vault } from "obsidian";
 import MetadataStore from "../metadata-store";
 import * as path from "path";
 
@@ -124,10 +124,20 @@ export default class GithubClient {
    * @param owner Owner of the repo
    * @param repo Name of the repo
    * @param branch Branch to download from
-   * @param local file to upload
+   * @param filePath local file path to upload
    */
-  async uploadFile(owner: string, repo: string, branch: string, file: TFile) {
-    const remotePath = this.metadataStore.data[file.path].remotePath;
+  async uploadFile(
+    owner: string,
+    repo: string,
+    branch: string,
+    filePath: string,
+  ) {
+    const { remotePath } = this.metadataStore.data[filePath];
+    const file = this.vault.getFileByPath(filePath);
+    if (!file) {
+      throw new Error(`Can't find file ${filePath}`);
+    }
+
     const buffer = await this.vault.readBinary(file);
     const content = Buffer.from(buffer).toString("base64");
     const res = await fetch(
@@ -136,15 +146,48 @@ export default class GithubClient {
         method: "PUT",
         headers: this.headers(),
         body: JSON.stringify({
-          message: "Edit file",
+          message: `Edit ${remotePath}`,
           branch: branch,
           content: content,
-          sha: this.metadataStore.data[file.path].sha,
+          sha: this.metadataStore.data[filePath].sha,
         }),
       },
     );
     if (!res.ok) {
       throw new Error(`Failed to upload file: ${res.statusText}`);
+    }
+  }
+
+  /**
+   * Delete a single file from GitHub.
+   * All the file information needed to delete the file is take form the metadata store.
+   *
+   * @param owner Owner of the repo
+   * @param repo Name of the repo
+   * @param branch Branch to download from
+   * @param filePath local file path that has been deleted
+   */
+  async deleteFile(
+    owner: string,
+    repo: string,
+    branch: string,
+    filePath: string,
+  ) {
+    const { remotePath } = this.metadataStore.data[filePath];
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}`,
+      {
+        method: "DELETE",
+        headers: this.headers(),
+        body: JSON.stringify({
+          message: `Delete ${remotePath}`,
+          branch: branch,
+          sha: this.metadataStore.data[filePath].sha,
+        }),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to delete file: ${res.statusText}`);
     }
   }
 }
