@@ -116,4 +116,35 @@ export default class GithubClient {
       this.vault.createBinary(destinationFile, buffer);
     }
   }
+
+  /**
+   * Upload a single file to GitHub.
+   * All the file information needed to upload the file is take form the metadata store.
+   *
+   * @param owner Owner of the repo
+   * @param repo Name of the repo
+   * @param branch Branch to download from
+   * @param local file to upload
+   */
+  async uploadFile(owner: string, repo: string, branch: string, file: TFile) {
+    const remotePath = this.metadataStore.data[file.path].remotePath;
+    const buffer = await this.vault.readBinary(file);
+    const content = Buffer.from(buffer).toString("base64");
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}`,
+      {
+        method: "PUT",
+        headers: this.headers(),
+        body: JSON.stringify({
+          message: "Edit file",
+          branch: branch,
+          content: content,
+          sha: this.metadataStore.data[file.path].sha,
+        }),
+      },
+    );
+    if (!res.ok) {
+      throw new Error(`Failed to upload file: ${res.statusText}`);
+    }
+  }
 }
