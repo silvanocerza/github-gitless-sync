@@ -1,9 +1,11 @@
-import { Vault } from "obsidian";
+import { Vault, TFile } from "obsidian";
+import MetadataStore from "../metadata-store";
 import * as path from "path";
 
 export default class GithubClient {
   constructor(
     private vault: Vault,
+    private metadataStore: MetadataStore,
     private token: string,
   ) {}
 
@@ -67,11 +69,32 @@ export default class GithubClient {
           repoContentDir,
           localContentDir,
         );
+        const fileMetadata = this.metadataStore.data[destinationFile];
+        if (fileMetadata && fileMetadata.sha === file.sha) {
+          // File already exists and has the same SHA, no need to download it again.
+          return;
+        }
+
         await this.downloadFile(url, destinationFile);
+        this.metadataStore.data[destinationFile] = {
+          localPath: destinationFile,
+          remotePath: file.path,
+          sha: file.sha,
+          dirty: false,
+        };
+        await this.metadataStore.save();
       }),
     );
   }
 
+  /**
+   * Downloads a single file from GitHub. This doesn't use the API but the raw
+   * file content endpoint that we receive from the API.
+   * This makes some things slightly easier to handle.
+   *
+   * @param url URL to raw file content
+   * @param destinationFile Local path where to save the file, relative to the vault
+   */
   async downloadFile(url: string, destinationFile: string) {
     // We're not setting auth headers here as we're not calling the Github API
     // directly but downloading the raw file, cause there are some size limitation
@@ -85,7 +108,12 @@ export default class GithubClient {
     if (!this.vault.getFolderByPath(destinationPath)) {
       this.vault.createFolder(destinationPath);
     }
-    // This doesn't overwrite existing files
-    this.vault.createBinary(destinationFile, buffer);
+
+    const existingFile = this.vault.getFileByPath(destinationFile);
+    if (existingFile) {
+      this.vault.modifyBinary(existingFile, buffer);
+    } else {
+      this.vault.createBinary(destinationFile, buffer);
+    }
   }
 }
