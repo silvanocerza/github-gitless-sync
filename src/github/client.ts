@@ -33,7 +33,7 @@ export default class GithubClient {
     localContentDir: string,
   ) {
     const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${repoContentDir}?${branch}`,
+      `https://api.github.com/repos/${owner}/${repo}/contents/${repoContentDir}?ref=${branch}`,
       {
         headers: this.headers(),
       },
