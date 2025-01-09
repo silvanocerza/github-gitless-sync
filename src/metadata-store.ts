@@ -1,5 +1,4 @@
 import { Vault } from "obsidian";
-import * as path from "path";
 
 /**
  * A file metadata.
@@ -32,10 +31,7 @@ export default class MetadataStore {
   private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(private vault: Vault) {
-    this.metadataFile = path.join(
-      this.vault.configDir,
-      "obsidian-github-sync-metadata.json",
-    );
+    this.metadataFile = `${this.vault.configDir}/obsidian-github-sync-metadata.json`;
   }
 
   /**

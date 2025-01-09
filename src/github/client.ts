@@ -1,6 +1,5 @@
 import { Vault, requestUrl } from "obsidian";
 import MetadataStore from "../metadata-store";
-import * as path from "path";
 
 export default class GithubClient {
   constructor(
@@ -55,7 +54,7 @@ export default class GithubClient {
           repo,
           dir.path,
           branch,
-          path.join(localContentDir, dir.name),
+          `${localContentDir}/${dir.name}`,
         ),
       ),
     );
@@ -103,7 +102,7 @@ export default class GithubClient {
     const res = await requestUrl({
       url: url,
     });
-    const destinationPath = path.dirname(destinationFile);
+    const destinationPath = destinationFile.split("/").slice(0, -1).join("/");
     if (!this.vault.getFolderByPath(destinationPath)) {
       this.vault.createFolder(destinationPath);
     }
