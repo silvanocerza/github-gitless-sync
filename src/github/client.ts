@@ -1,4 +1,4 @@
-import { Vault } from "obsidian";
+import { Vault, requestUrl } from "obsidian";
 import MetadataStore from "../metadata-store";
 import * as path from "path";
 
@@ -34,12 +34,10 @@ export default class GithubClient {
     branch: string,
     localContentDir: string,
   ) {
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${repoContentDir}?ref=${branch}`,
-      {
-        headers: this.headers(),
-      },
-    );
+    const res = await requestUrl({
+      url: `https://api.github.com/repos/${owner}/${repo}/contents/${repoContentDir}?ref=${branch}`,
+      headers: this.headers(),
+    });
 
     const content = await res.json();
     const directories = content.filter((file: any) => file.type === "dir");
@@ -102,8 +100,9 @@ export default class GithubClient {
     // Using the headers above is not feasible as it triggers CORS preflight
     // and GH doesn't allow that for raw content endpoints. Thus breaking everything.
     // So this doesn't work with a private repo, will figure it out later.
-    const res = await fetch(url);
-    const buffer = await res.arrayBuffer();
+    const res = await requestUrl({
+      url: url,
+    });
     const destinationPath = path.dirname(destinationFile);
     if (!this.vault.getFolderByPath(destinationPath)) {
       this.vault.createFolder(destinationPath);
@@ -111,9 +110,9 @@ export default class GithubClient {
 
     const existingFile = this.vault.getFileByPath(destinationFile);
     if (existingFile) {
-      this.vault.modifyBinary(existingFile, buffer);
+      this.vault.modifyBinary(existingFile, res.arrayBuffer);
     } else {
-      this.vault.createBinary(destinationFile, buffer);
+      this.vault.createBinary(destinationFile, res.arrayBuffer);
     }
   }
 
@@ -140,21 +139,19 @@ export default class GithubClient {
 
     const buffer = await this.vault.readBinary(file);
     const content = Buffer.from(buffer).toString("base64");
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}`,
-      {
-        method: "PUT",
-        headers: this.headers(),
-        body: JSON.stringify({
-          message: `Edit ${remotePath}`,
-          branch: branch,
-          content: content,
-          sha: this.metadataStore.data[filePath].sha,
-        }),
-      },
-    );
-    if (!res.ok) {
-      throw new Error(`Failed to upload file: ${res.statusText}`);
+    const res = await requestUrl({
+      url: `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}`,
+      method: "PUT",
+      headers: this.headers(),
+      body: JSON.stringify({
+        message: `Edit ${remotePath}`,
+        branch: branch,
+        content: content,
+        sha: this.metadataStore.data[filePath].sha,
+      }),
+    });
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Failed to upload file: ${res.status}`);
     }
   }
 
@@ -174,20 +171,18 @@ export default class GithubClient {
     filePath: string,
   ) {
     const { remotePath } = this.metadataStore.data[filePath];
-    const res = await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}`,
-      {
-        method: "DELETE",
-        headers: this.headers(),
-        body: JSON.stringify({
-          message: `Delete ${remotePath}`,
-          branch: branch,
-          sha: this.metadataStore.data[filePath].sha,
-        }),
-      },
-    );
-    if (!res.ok) {
-      throw new Error(`Failed to delete file: ${res.statusText}`);
+    const res = await requestUrl({
+      url: `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}`,
+      method: "DELETE",
+      headers: this.headers(),
+      body: JSON.stringify({
+        message: `Delete ${remotePath}`,
+        branch: branch,
+        sha: this.metadataStore.data[filePath].sha,
+      }),
+    });
+    if (res.status < 200 || res.status >= 300) {
+      throw new Error(`Failed to delete file: ${res.status}`);
     }
   }
 }
