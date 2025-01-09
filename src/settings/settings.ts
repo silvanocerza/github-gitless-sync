@@ -5,7 +5,7 @@ export interface GitHubSyncSettings {
   githubBranch: string;
   repoContentDir: string;
   localContentDir: string;
-  syncStrategy: "save" | "manual" | "interval";
+  syncStrategy: "manual" | "interval";
   syncInterval: number;
 }
 
@@ -16,6 +16,6 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   githubBranch: "main",
   repoContentDir: "",
   localContentDir: "",
-  syncStrategy: "save",
+  syncStrategy: "manual",
   syncInterval: 1,
 };

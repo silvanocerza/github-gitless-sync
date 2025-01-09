@@ -16,7 +16,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
 
     containerEl.createEl("h1", { text: "GitHub Sync Settings" });
 
-    containerEl.createEl("h2", { text: "Repository settings" });
+    containerEl.createEl("h2", { text: "Remote Repository" });
 
     let tokenInput: TextComponent;
     new Setting(containerEl)
@@ -85,7 +85,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           }),
       );
 
-    containerEl.createEl("h2", { text: "Sync settings" });
+    containerEl.createEl("h2", { text: "Sync" });
 
     new Setting(containerEl)
       .setName("Repository content directory")
@@ -122,7 +122,6 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
       );
 
     const saveStrategies = {
-      save: "On file save",
       manual: "Manually",
       interval: "On Interval",
     };
