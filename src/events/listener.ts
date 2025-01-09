@@ -6,7 +6,7 @@ import EventsQueue from "./queue";
 /**
  * Tracks changes to local sync directory and updates files metadata.
  */
-export default class EventsHandler {
+export default class EventsListener {
   private eventsQueue: EventsQueue = new EventsQueue();
 
   constructor(
