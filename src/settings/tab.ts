@@ -167,6 +167,40 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
         }),
     );
 
+    new Setting(containerEl)
+      .setName("Sync on startup")
+      .setDesc("Download up to date files from remote on startup")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.syncOnStartup)
+          .onChange(async (value) => {
+            this.plugin.settings.syncOnStartup = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    const conflictHandlingOptions = {
+      ignore: "Ignore remote file",
+      ask: "Ask",
+      overwrite: "Overwrite local file",
+    };
+    new Setting(containerEl)
+      .setName("Conflict handling")
+      .setDesc(
+        `What to do in case remote and local files conflict
+        when downloading from GitHub repository
+        `,
+      )
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOptions(conflictHandlingOptions)
+          .setValue(this.plugin.settings.conflictHandling)
+          .onChange(async (value: keyof typeof conflictHandlingOptions) => {
+            this.plugin.settings.conflictHandling = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
     containerEl.createEl("h2", { text: "Interface" });
 
     new Setting(containerEl)
