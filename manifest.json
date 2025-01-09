@@ -6,5 +6,6 @@
   "description": "A plugin to sync a Github repository with an Obsidian vault.",
   "author": "Silvano Cerza",
   "authorUrl": "https://silvanocerza.com",
+  "fundingUrl": "https://ko-fi.com/silvanocerza",
   "isDesktopOnly": false
 }
