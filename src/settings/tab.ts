@@ -143,6 +143,8 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.syncInterval = parseInt(value) || 1;
             await this.plugin.saveSettings();
+            // We need to restart the interval if the value is changed
+            this.plugin.restartSyncInterval();
           }),
       );
     intervalSettings.setDisabled(
@@ -157,6 +159,11 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           intervalSettings.setDisabled(value !== "interval");
           this.plugin.settings.syncStrategy = value;
           await this.plugin.saveSettings();
+          if (value === "interval") {
+            this.plugin.startSyncInterval();
+          } else {
+            this.plugin.stopSyncInterval();
+          }
         }),
     );
   }
