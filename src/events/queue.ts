@@ -44,4 +44,16 @@ export default class EventsQueue {
       this.eventsQueue.set(event.filePath, event);
     }
   }
+
+  /**
+   * Returns and empties the events queue.
+   */
+  flush(): Event[] {
+    const events: Event[] = [];
+    this.eventsQueue.forEach((event) => {
+      events.push(event);
+    });
+    this.eventsQueue.clear();
+    return events;
+  }
 }

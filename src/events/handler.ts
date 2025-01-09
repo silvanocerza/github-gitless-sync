@@ -21,6 +21,13 @@ export default class EventsHandler {
     this.vault.on("rename", this.onRename.bind(this));
   }
 
+  /**
+   * Returns and empties the events queue.
+   */
+  flush(): Event[] {
+    return this.eventsQueue.flush();
+  }
+
   private async onCreate(file: TAbstractFile) {
     if (!file.path.startsWith(this.localContentDir)) {
       // The file has not been created in directory that we're syncing with GitHub
