@@ -166,5 +166,72 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           }
         }),
     );
+
+    containerEl.createEl("h2", { text: "Interface" });
+
+    new Setting(containerEl)
+      .setName("Show status bar item")
+      .setDesc("Displays the status bar item that show the file synnc status")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showStatusBarItem)
+          .onChange((value) => {
+            this.plugin.settings.showStatusBarItem = value;
+            this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Show download all files button")
+      .setDesc(
+        "Displays a ribbon button to download all files from the remote repository",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showDownloadRibbonButton)
+          .onChange((value) => {
+            this.plugin.settings.showDownloadRibbonButton = value;
+            this.plugin.saveSettings();
+            if (value) {
+              this.plugin.showDownloadAllRibbonIcon();
+            } else {
+              this.plugin.hideDownloadAllRibbonIcon();
+            }
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Show upload modified files button")
+      .setDesc("Displays a ribbon button to upload modified files")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showUploadModifiedFilesRibbonButton)
+          .onChange((value) => {
+            this.plugin.settings.showUploadModifiedFilesRibbonButton = value;
+            this.plugin.saveSettings();
+            if (value) {
+              this.plugin.showUploadModifiedFilesRibbonIcon();
+            } else {
+              this.plugin.hideUploadModifiedFilesRibbonIcon();
+            }
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Show upload modified files button")
+      .setDesc("Displays a ribbon button to upload all files")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showUploadAllFilesRibbonButton)
+          .onChange((value) => {
+            this.plugin.settings.showUploadAllFilesRibbonButton = value;
+            this.plugin.saveSettings();
+            if (value) {
+              this.plugin.showUploadAllFilesRibbonIcon();
+            } else {
+              this.plugin.hideUploadAllFilesRibbonIcon();
+            }
+          });
+      });
   }
 }

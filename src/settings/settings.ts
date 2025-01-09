@@ -7,6 +7,10 @@ export interface GitHubSyncSettings {
   localContentDir: string;
   syncStrategy: "manual" | "interval";
   syncInterval: number;
+  showStatusBarItem: boolean;
+  showDownloadRibbonButton: boolean;
+  showUploadModifiedFilesRibbonButton: boolean;
+  showUploadAllFilesRibbonButton: boolean;
 }
 
 export const DEFAULT_SETTINGS: GitHubSyncSettings = {
@@ -18,4 +22,8 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   localContentDir: "",
   syncStrategy: "manual",
   syncInterval: 1,
+  showStatusBarItem: true,
+  showDownloadRibbonButton: true,
+  showUploadModifiedFilesRibbonButton: true,
+  showUploadAllFilesRibbonButton: true,
 };

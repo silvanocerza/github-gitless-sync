@@ -15,11 +15,27 @@ export default class GitHubSyncPlugin extends Plugin {
   eventsConsumer: EventsConsumer;
   syncIntervalId: number | null = null;
 
+  downloadAllRibbonIcon: HTMLElement | null = null;
+  uploadModifiedFilesRibbonIcon: HTMLElement | null = null;
+  uploadAllFilesRibbonIcon: HTMLElement | null = null;
+
   async onload() {
     await this.loadSettings();
     await this.loadMetadata();
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
+
+    if (this.settings.showDownloadRibbonButton) {
+      this.showDownloadAllRibbonIcon();
+    }
+
+    if (this.settings.showUploadModifiedFilesRibbonButton) {
+      this.showUploadModifiedFilesRibbonIcon();
+    }
+
+    if (this.settings.showUploadAllFilesRibbonButton) {
+      this.showUploadAllFilesRibbonIcon();
+    }
 
     this.client = new GithubClient(
       this.app.vault,
@@ -51,15 +67,6 @@ export default class GitHubSyncPlugin extends Plugin {
     //   callback: () => {},
     // });
 
-    this.addRibbonIcon("arrow-down-from-line", "Download all", async () => {
-      await this.client.downloadRepoContent(
-        this.settings.githubOwner,
-        this.settings.githubRepo,
-        this.settings.repoContentDir,
-        this.settings.githubBranch,
-        this.settings.localContentDir,
-      );
-    });
     // this.addRibbonIcon("arrow-up-from-line", "Upload all", async () => {
     //   const activeFile = this.app.workspace.getActiveFile();
     //   if (!activeFile) {
@@ -145,6 +152,64 @@ export default class GitHubSyncPlugin extends Plugin {
     if (this.settings.syncStrategy == "interval") {
       this.restartSyncInterval();
     }
+  }
+
+  showDownloadAllRibbonIcon() {
+    if (this.downloadAllRibbonIcon) {
+      return;
+    }
+    this.downloadAllRibbonIcon = this.addRibbonIcon(
+      "arrow-down-from-line",
+      "Download all files from GitHub",
+      async () => {
+        await this.client.downloadRepoContent(
+          this.settings.githubOwner,
+          this.settings.githubRepo,
+          this.settings.repoContentDir,
+          this.settings.githubBranch,
+          this.settings.localContentDir,
+        );
+      },
+    );
+  }
+
+  hideDownloadAllRibbonIcon() {
+    this.downloadAllRibbonIcon?.remove();
+    this.downloadAllRibbonIcon = null;
+  }
+
+  showUploadModifiedFilesRibbonIcon() {
+    if (this.uploadModifiedFilesRibbonIcon) {
+      return;
+    }
+    this.uploadModifiedFilesRibbonIcon = this.addRibbonIcon(
+      "arrow-up",
+      "Upload modified files to GitHub",
+      async () => this.syncModifiedFiles(),
+    );
+  }
+
+  hideUploadModifiedFilesRibbonIcon() {
+    this.uploadModifiedFilesRibbonIcon?.remove();
+    this.uploadModifiedFilesRibbonIcon = null;
+  }
+
+  showUploadAllFilesRibbonIcon() {
+    if (this.uploadAllFilesRibbonIcon) {
+      return;
+    }
+    this.uploadAllFilesRibbonIcon = this.addRibbonIcon(
+      "arrow-up-from-line",
+      "Upload all files to GitHub",
+      async () => {
+        // TODO
+      },
+    );
+  }
+
+  hideUploadAllFilesRibbonIcon() {
+    this.uploadAllFilesRibbonIcon?.remove();
+    this.uploadAllFilesRibbonIcon = null;
   }
 
   private async loadMetadata() {
