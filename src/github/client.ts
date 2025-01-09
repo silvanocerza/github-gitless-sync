@@ -156,6 +156,29 @@ export default class GithubClient {
   }
 
   /**
+   * Gets the SHA of a file in the remote repo given its local path.
+   *
+   * @param owner Owner of the repo
+   * @param repo Name of the repo
+   * @param branch Branch to download from
+   * @param filePath local file path to upload
+   * @returns sha of the file as string
+   */
+  async getFileSha(
+    owner: string,
+    repo: string,
+    branch: string,
+    filePath: string,
+  ) {
+    const { remotePath } = this.metadataStore.data[filePath];
+    const res = await requestUrl({
+      url: `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}?ref=${branch}`,
+      headers: this.headers(),
+    });
+    return res.json.sha;
+  }
+
+  /**
    * Delete a single file from GitHub.
    * All the file information needed to delete the file is take form the metadata store.
    *

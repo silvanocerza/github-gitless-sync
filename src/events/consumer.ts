@@ -13,7 +13,7 @@ export default class EventsConsumer {
 
   async process(event: Event): Promise<void> {
     if (event.type == "create" || event.type == "modify") {
-      const res = await this.client.uploadFile(
+      await this.client.uploadFile(
         this.owner,
         this.repo,
         this.branch,
@@ -21,9 +21,17 @@ export default class EventsConsumer {
       );
       // Reset dirty state
       this.metadataStore.data[event.filePath].dirty = false;
+      // Gets the new SHA of the file
+      const sha = await this.client.getFileSha(
+        this.owner,
+        this.repo,
+        this.branch,
+        event.filePath,
+      );
+      this.metadataStore.data[event.filePath].sha = sha;
       this.metadataStore.save();
     } else if (event.type == "delete") {
-      const res = await this.client.deleteFile(
+      await this.client.deleteFile(
         this.owner,
         this.repo,
         this.branch,
