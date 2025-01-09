@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { EventRef, Plugin } from "obsidian";
 import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
 import GithubClient from "./github/client";
 import GitHubSyncSettingsTab from "./settings/tab";
@@ -15,15 +15,24 @@ export default class GitHubSyncPlugin extends Plugin {
   eventsConsumer: EventsConsumer;
   syncIntervalId: number | null = null;
 
+  statusBarItem: HTMLElement | null = null;
   downloadAllRibbonIcon: HTMLElement | null = null;
   uploadModifiedFilesRibbonIcon: HTMLElement | null = null;
   uploadAllFilesRibbonIcon: HTMLElement | null = null;
+
+  activeLeafChangeListener: EventRef | null = null;
+  vaultCreateListener: EventRef | null = null;
+  vaultModifyListener: EventRef | null = null;
 
   async onload() {
     await this.loadSettings();
     await this.loadMetadata();
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
+
+    if (this.settings.showStatusBarItem) {
+      this.showStatusBarItem();
+    }
 
     if (this.settings.showDownloadRibbonButton) {
       this.showDownloadAllRibbonIcon();
@@ -114,6 +123,7 @@ export default class GitHubSyncPlugin extends Plugin {
       this.settings.githubBranch,
       this.settings.localContentDir,
     );
+    this.updateStatusBarItem();
   }
 
   private async uploadModifiedFiles() {
@@ -122,10 +132,12 @@ export default class GitHubSyncPlugin extends Plugin {
         await this.eventsConsumer.process(event);
       }),
     );
+    this.updateStatusBarItem();
   }
 
   private async uploadAllFiles() {
     // TODO
+    this.updateStatusBarItem();
   }
 
   /**
@@ -161,6 +173,57 @@ export default class GitHubSyncPlugin extends Plugin {
     if (this.settings.syncStrategy == "interval") {
       this.restartSyncInterval();
     }
+  }
+
+  showStatusBarItem() {
+    if (this.statusBarItem) {
+      return;
+    }
+    this.statusBarItem = this.addStatusBarItem();
+
+    if (!this.activeLeafChangeListener) {
+      this.activeLeafChangeListener = this.app.workspace.on(
+        "active-leaf-change",
+        () => this.updateStatusBarItem(),
+      );
+    }
+    if (!this.vaultCreateListener) {
+      this.vaultCreateListener = this.app.vault.on("create", () => {
+        this.updateStatusBarItem();
+      });
+    }
+    if (!this.vaultModifyListener) {
+      this.vaultModifyListener = this.app.vault.on("modify", () => {
+        this.updateStatusBarItem();
+      });
+    }
+  }
+
+  hideStatusBarItem() {
+    this.statusBarItem?.remove();
+    this.statusBarItem = null;
+  }
+
+  updateStatusBarItem() {
+    if (!this.statusBarItem) {
+      return;
+    }
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      return;
+    }
+
+    let state = "Unknown";
+    const fileData = this.metadataStore.data[activeFile.path];
+    if (!fileData) {
+      state = "Untracked";
+    } else if (fileData.dirty) {
+      state = "Outdated";
+    } else if (!fileData.dirty) {
+      state = "Up to date";
+    }
+
+    this.statusBarItem.setText(`GitHub: ${state}`);
   }
 
   showDownloadAllRibbonIcon() {
