@@ -171,7 +171,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("Show status bar item")
-      .setDesc("Displays the status bar item that show the file synnc status")
+      .setDesc("Displays the status bar item that show the file sync status")
       .addToggle((toggle) => {
         toggle
           .setValue(this.plugin.settings.showStatusBarItem)
