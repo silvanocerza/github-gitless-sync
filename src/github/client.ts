@@ -77,6 +77,7 @@ export default class GithubClient {
           remotePath: file.path,
           sha: file.sha,
           dirty: false,
+          justDownloaded: true,
         };
         await this.metadataStore.save();
       }),

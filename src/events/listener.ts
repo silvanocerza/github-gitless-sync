@@ -33,11 +33,23 @@ export default class EventsListener {
       // The file has not been created in directory that we're syncing with GitHub
       return;
     }
+
+    const data = this.metadataStore.data[file.path];
+    if (data && data.justDownloaded) {
+      // This file was just downloaded and not created by the user.
+      // It's enough to makr it as non just downloaded.
+      this.metadataStore.data[file.path].justDownloaded = false;
+      await this.metadataStore.save();
+      return;
+    }
+
     this.metadataStore.data[file.path] = {
       localPath: file.path,
       remotePath: file.path.replace(this.localContentDir, this.repoContentDir),
       sha: null,
       dirty: true,
+      // This file has been created by the user
+      justDownloaded: false,
     };
     await this.metadataStore.save();
     this.eventsQueue.enqueue({
@@ -62,6 +74,15 @@ export default class EventsListener {
   private async onModify(file: TAbstractFile) {
     if (!file.path.startsWith(this.localContentDir)) {
       // The file has not been create in directory that we're syncing with GitHub
+      return;
+    }
+
+    const data = this.metadataStore.data[file.path];
+    if (data && data.justDownloaded) {
+      // This file was just downloaded and not modified by the user.
+      // It's enough to makr it as non just downloaded.
+      this.metadataStore.data[file.path].justDownloaded = false;
+      await this.metadataStore.save();
       return;
     }
     this.metadataStore.data[file.path].dirty = true;

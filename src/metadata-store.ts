@@ -15,6 +15,11 @@ export interface FileMetadata {
   sha: string | null;
   // Whether the file has been modified locally.
   dirty: boolean;
+  // This is mostly used to track if the file has been just downloaded from the remote.
+  // This is necessary since even when creating a file programatically after it has been
+  // downloaded it will trigger a 'create' or 'modify' event.
+  // This is a problem as we can't know whether an event has been triggered by us or the user.
+  justDownloaded: boolean;
 }
 
 export interface Metadata {
