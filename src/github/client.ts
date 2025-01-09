@@ -71,7 +71,7 @@ export default class GithubClient {
           return;
         }
 
-        await this.downloadFile(url, destinationFile);
+        await this.downloadRawFile(url, destinationFile);
         this.metadataStore.data[destinationFile] = {
           localPath: destinationFile,
           remotePath: file.path,
@@ -92,7 +92,7 @@ export default class GithubClient {
    * @param url URL to raw file content
    * @param destinationFile Local path where to save the file, relative to the vault
    */
-  async downloadFile(url: string, destinationFile: string) {
+  async downloadRawFile(url: string, destinationFile: string) {
     // We're not setting auth headers here as we're not calling the Github API
     // directly but downloading the raw file, cause there are some size limitation
     // with the official API.
