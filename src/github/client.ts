@@ -38,14 +38,13 @@ export default class GithubClient {
       headers: this.headers(),
     });
 
-    const content = await res.json();
-    const directories = content.filter((file: any) => file.type === "dir");
+    const directories = res.json.filter((file: any) => file.type === "dir");
     // As specified in the Github docs also submodules are specified as "file".
     // For the time being we're going to let this slide cause I don't really
     // want to handle this right now. I'll figure out a way to do this later. Maybe.
     // More info in the official docs:
     // https://docs.github.com/en/rest/repos/contents?apiVersion=2022-11-28#get-repository-content
-    const files = content.filter((file: any) => file.type === "file");
+    const files = res.json.filter((file: any) => file.type === "file");
 
     await Promise.all(
       directories.map((dir: any) =>
