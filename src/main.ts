@@ -52,33 +52,28 @@ export default class GitHubSyncPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "github-sync-modified-files",
-      name: "Sync modified files to GitHub",
+      id: "download-all-files",
+      name: "Download all files to GitHub",
       repeatable: false,
-      icon: "arrow-up",
-      callback: () => this.syncModifiedFiles(),
+      icon: "arrow-down-from-line",
+      callback: async () => await this.downloadAllFiles(),
     });
 
-    // this.addCommand({
-    //   id: "github-sync-all-files",
-    //   name: "Sync all files to GitHub",
-    //   repeatable: false,
-    //   icon: "arrow-up-from-line",
-    //   callback: () => {},
-    // });
+    this.addCommand({
+      id: "upload-modified-files",
+      name: "Upload modified files to GitHub",
+      repeatable: false,
+      icon: "arrow-up",
+      callback: async () => await this.uploadModifiedFiles(),
+    });
 
-    // this.addRibbonIcon("arrow-up-from-line", "Upload all", async () => {
-    //   const activeFile = this.app.workspace.getActiveFile();
-    //   if (!activeFile) {
-    //     return;
-    //   }
-    //   client.uploadFile(
-    //     this.settings.githubOwner,
-    //     this.settings.githubRepo,
-    //     this.settings.githubBranch,
-    //     activeFile.path,
-    //   );
-    // });
+    this.addCommand({
+      id: "upload-all-files",
+      name: "Upload all files to GitHub",
+      repeatable: false,
+      icon: "arrow-up-from-line",
+      callback: async () => await this.uploadAllFiles(),
+    });
   }
 
   async onunload() {
@@ -94,7 +89,7 @@ export default class GitHubSyncPlugin extends Plugin {
       throw new Error("Sync interval is already running");
     }
     this.syncIntervalId = window.setInterval(
-      () => this.syncModifiedFiles(),
+      () => this.uploadModifiedFiles(),
       // Sync interval is set in minutes but setInterval expects milliseconds
       this.settings.syncInterval * 60 * 1000,
     );
@@ -111,12 +106,26 @@ export default class GitHubSyncPlugin extends Plugin {
     }
   }
 
-  private async syncModifiedFiles() {
+  private async downloadAllFiles() {
+    await this.client.downloadRepoContent(
+      this.settings.githubOwner,
+      this.settings.githubRepo,
+      this.settings.repoContentDir,
+      this.settings.githubBranch,
+      this.settings.localContentDir,
+    );
+  }
+
+  private async uploadModifiedFiles() {
     await Promise.all(
       this.eventsListener.flush().map(async (event: Event) => {
         await this.eventsConsumer.process(event);
       }),
     );
+  }
+
+  private async uploadAllFiles() {
+    // TODO
   }
 
   /**
@@ -161,15 +170,7 @@ export default class GitHubSyncPlugin extends Plugin {
     this.downloadAllRibbonIcon = this.addRibbonIcon(
       "arrow-down-from-line",
       "Download all files from GitHub",
-      async () => {
-        await this.client.downloadRepoContent(
-          this.settings.githubOwner,
-          this.settings.githubRepo,
-          this.settings.repoContentDir,
-          this.settings.githubBranch,
-          this.settings.localContentDir,
-        );
-      },
+      async () => await this.downloadAllFiles(),
     );
   }
 
@@ -185,7 +186,7 @@ export default class GitHubSyncPlugin extends Plugin {
     this.uploadModifiedFilesRibbonIcon = this.addRibbonIcon(
       "arrow-up",
       "Upload modified files to GitHub",
-      async () => this.syncModifiedFiles(),
+      async () => await this.uploadModifiedFiles(),
     );
   }
 
@@ -201,9 +202,7 @@ export default class GitHubSyncPlugin extends Plugin {
     this.uploadAllFilesRibbonIcon = this.addRibbonIcon(
       "arrow-up-from-line",
       "Upload all files to GitHub",
-      async () => {
-        // TODO
-      },
+      async () => await this.uploadAllFiles(),
     );
   }
 
