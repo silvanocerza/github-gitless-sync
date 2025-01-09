@@ -1,4 +1,4 @@
-import { Vault } from "obsidian";
+import { Vault, normalizePath } from "obsidian";
 
 /**
  * A file metadata.
@@ -31,16 +31,18 @@ export default class MetadataStore {
   private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(private vault: Vault) {
-    this.metadataFile = `${this.vault.configDir}/obsidian-github-sync-metadata.json`;
+    this.metadataFile = normalizePath(
+      `${this.vault.configDir}/github-sync-metadata.json`,
+    );
   }
 
   /**
    * Loads the metadata from disk.
    */
   async load() {
-    const existingFile = this.vault.getFileByPath(this.metadataFile);
-    if (existingFile) {
-      const content = await this.vault.read(existingFile);
+    const fileExists = await this.vault.adapter.exists(this.metadataFile);
+    if (fileExists) {
+      const content = await this.vault.adapter.read(this.metadataFile);
       this.data = JSON.parse(content);
     } else {
       this.data = {};
