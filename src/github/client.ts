@@ -1,4 +1,4 @@
-import { Vault, requestUrl } from "obsidian";
+import { Vault, requestUrl, normalizePath } from "obsidian";
 import MetadataStore from "../metadata-store";
 
 export default class GithubClient {
@@ -101,17 +101,17 @@ export default class GithubClient {
     const res = await requestUrl({
       url: url,
     });
-    const destinationPath = destinationFile.split("/").slice(0, -1).join("/");
-    if (!this.vault.getFolderByPath(destinationPath)) {
-      this.vault.createFolder(destinationPath);
+    const destinationFolder = normalizePath(
+      destinationFile.split("/").slice(0, -1).join("/"),
+    );
+    if (!(await this.vault.adapter.exists(destinationFolder))) {
+      await this.vault.adapter.mkdir(destinationFolder);
     }
 
-    const existingFile = this.vault.getFileByPath(destinationFile);
-    if (existingFile) {
-      this.vault.modifyBinary(existingFile, res.arrayBuffer);
-    } else {
-      this.vault.createBinary(destinationFile, res.arrayBuffer);
-    }
+    this.vault.adapter.writeBinary(
+      normalizePath(destinationFile),
+      res.arrayBuffer,
+    );
   }
 
   /**
@@ -130,12 +130,13 @@ export default class GithubClient {
     filePath: string,
   ) {
     const { remotePath } = this.metadataStore.data[filePath];
-    const file = this.vault.getFileByPath(filePath);
-    if (!file) {
+
+    const normalizedFilePath = normalizePath(filePath);
+    if (!(await this.vault.adapter.exists(normalizedFilePath))) {
       throw new Error(`Can't find file ${filePath}`);
     }
 
-    const buffer = await this.vault.readBinary(file);
+    const buffer = await this.vault.adapter.readBinary(normalizedFilePath);
     const content = Buffer.from(buffer).toString("base64");
     const res = await requestUrl({
       url: `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}`,
