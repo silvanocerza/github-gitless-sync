@@ -53,7 +53,7 @@ export default class GithubClient {
           repo,
           dir.path,
           branch,
-          `${localContentDir}/${dir.name}`,
+          localContentDir ? `${localContentDir}/${dir.name}` : dir.name,
         ),
       ),
     );

@@ -108,7 +108,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
       .setName("Local content directory")
       .setDesc(
         `The local directory to sync, relative to the vault root.
-        Defaults to the repository name if not set.`,
+        If not set the whole vault will be synced.`,
       )
       .addText((text) =>
         text
