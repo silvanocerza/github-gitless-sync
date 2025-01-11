@@ -36,22 +36,6 @@ export default class GitHubSyncPlugin extends Plugin {
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
 
-    if (this.settings.showStatusBarItem) {
-      this.showStatusBarItem();
-    }
-
-    if (this.settings.showDownloadRibbonButton) {
-      this.showDownloadAllRibbonIcon();
-    }
-
-    if (this.settings.showUploadModifiedFilesRibbonButton) {
-      this.showUploadModifiedFilesRibbonIcon();
-    }
-
-    if (this.settings.showUploadAllFilesRibbonButton) {
-      this.showUploadAllFilesRibbonIcon();
-    }
-
     this.client = new GithubClient(
       this.app.vault,
       this.metadataStore,
@@ -64,6 +48,24 @@ export default class GitHubSyncPlugin extends Plugin {
       // See the official Obsidian docs:
       // https://docs.obsidian.md/Reference/TypeScript+API/Vault/on('create')
       await this.startEventsHandlers();
+
+      // Load the ribbons after layout is ready so they're shown after the core
+      // buttons
+      if (this.settings.showStatusBarItem) {
+        this.showStatusBarItem();
+      }
+
+      if (this.settings.showDownloadRibbonButton) {
+        this.showDownloadAllRibbonIcon();
+      }
+
+      if (this.settings.showUploadModifiedFilesRibbonButton) {
+        this.showUploadModifiedFilesRibbonIcon();
+      }
+
+      if (this.settings.showUploadAllFilesRibbonButton) {
+        this.showUploadAllFilesRibbonIcon();
+      }
     });
 
     this.addCommand({
