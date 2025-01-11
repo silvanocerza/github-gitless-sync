@@ -1,4 +1,4 @@
-import { EventRef, Plugin } from "obsidian";
+import { EventRef, Plugin, FileView } from "obsidian";
 import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
 import GithubClient from "./github/client";
 import GitHubSyncSettingsTab from "./settings/tab";
@@ -19,6 +19,7 @@ export default class GitHubSyncPlugin extends Plugin {
   statusBarItem: HTMLElement | null = null;
   downloadAllRibbonIcon: HTMLElement | null = null;
   uploadModifiedFilesRibbonIcon: HTMLElement | null = null;
+  uploadCurrentFileRibbonIcon: HTMLElement | null = null;
   uploadAllFilesRibbonIcon: HTMLElement | null = null;
 
   activeLeafChangeListener: EventRef | null = null;
@@ -63,6 +64,10 @@ export default class GitHubSyncPlugin extends Plugin {
         this.showUploadModifiedFilesRibbonIcon();
       }
 
+      if (this.settings.showUploadActiveFileRibbonButton) {
+        this.showUploadActiveFileRibbonIcon();
+      }
+
       if (this.settings.showUploadAllFilesRibbonButton) {
         this.showUploadAllFilesRibbonIcon();
       }
@@ -80,8 +85,16 @@ export default class GitHubSyncPlugin extends Plugin {
       id: "upload-modified-files",
       name: "Upload modified files to GitHub",
       repeatable: false,
-      icon: "arrow-up",
+      icon: "refresh-cw",
       callback: async () => await this.uploadModifiedFiles(),
+    });
+
+    this.addCommand({
+      id: "upload-active-file",
+      name: "Upload active file to GitHub",
+      repeatable: false,
+      icon: "arrow-up",
+      callback: async () => await this.uploadActiveFile(),
     });
 
     this.addCommand({
@@ -140,6 +153,21 @@ export default class GitHubSyncPlugin extends Plugin {
         await this.eventsConsumer.process(event);
       }),
     );
+    this.updateStatusBarItem();
+  }
+
+  private async uploadActiveFile() {
+    const activeView = this.app.workspace.getActiveViewOfType(FileView);
+    if (!activeView) {
+      return;
+    }
+    const activeFile = activeView.file;
+    if (!activeFile) {
+      return;
+    }
+    // TODO: Remove the file from eventsListener if it's there
+    // TODO: Upload file
+    // TODO: Update SHA
     this.updateStatusBarItem();
   }
 
@@ -260,7 +288,7 @@ export default class GitHubSyncPlugin extends Plugin {
       return;
     }
     this.uploadModifiedFilesRibbonIcon = this.addRibbonIcon(
-      "arrow-up",
+      "refresh-cw",
       "Upload modified files to GitHub",
       async () => await this.uploadModifiedFiles(),
     );
@@ -269,6 +297,23 @@ export default class GitHubSyncPlugin extends Plugin {
   hideUploadModifiedFilesRibbonIcon() {
     this.uploadModifiedFilesRibbonIcon?.remove();
     this.uploadModifiedFilesRibbonIcon = null;
+  }
+
+  showUploadActiveFileRibbonIcon() {
+    if (this.uploadCurrentFileRibbonIcon) {
+      return;
+    }
+
+    this.uploadCurrentFileRibbonIcon = this.addRibbonIcon(
+      "arrow-up",
+      "Upload current file to GitHub",
+      async () => await this.uploadActiveFile(),
+    );
+  }
+
+  hideUploadActiveFileRibbonIcon() {
+    this.uploadCurrentFileRibbonIcon?.remove();
+    this.uploadCurrentFileRibbonIcon = null;
   }
 
   showUploadAllFilesRibbonIcon() {

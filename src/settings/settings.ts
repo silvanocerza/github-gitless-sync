@@ -12,6 +12,7 @@ export interface GitHubSyncSettings {
   showStatusBarItem: boolean;
   showDownloadRibbonButton: boolean;
   showUploadModifiedFilesRibbonButton: boolean;
+  showUploadActiveFileRibbonButton: boolean;
   showUploadAllFilesRibbonButton: boolean;
 }
 
@@ -29,5 +30,6 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   showStatusBarItem: true,
   showDownloadRibbonButton: true,
   showUploadModifiedFilesRibbonButton: true,
+  showUploadActiveFileRibbonButton: true,
   showUploadAllFilesRibbonButton: true,
 };
