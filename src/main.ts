@@ -6,6 +6,7 @@ import MetadataStore from "./metadata-store";
 import EventsListener from "./events/listener";
 import EventsConsumer from "./events/consumer";
 import { type Event } from "./events/types";
+import { UploadDialog } from "./views/upload-all-files-dialog/view";
 
 export default class GitHubSyncPlugin extends Plugin {
   settings: GitHubSyncSettings;
@@ -81,7 +82,7 @@ export default class GitHubSyncPlugin extends Plugin {
       name: "Upload all files to GitHub",
       repeatable: false,
       icon: "arrow-up-from-line",
-      callback: async () => await this.uploadAllFiles(),
+      callback: async () => await this.openUploadAllFilesDialog(),
     });
   }
 
@@ -135,8 +136,13 @@ export default class GitHubSyncPlugin extends Plugin {
     this.updateStatusBarItem();
   }
 
-  private async uploadAllFiles() {
-    // TODO
+  /**
+   * Opens dialog to upload all file in the tracked folder.
+   * This doesn't take into account the state of the files and uploads
+   * ALL files whether they've been modified or not.
+   */
+  private async openUploadAllFilesDialog() {
+    new UploadDialog(this).open();
     this.updateStatusBarItem();
   }
 
@@ -265,7 +271,7 @@ export default class GitHubSyncPlugin extends Plugin {
     this.uploadAllFilesRibbonIcon = this.addRibbonIcon(
       "arrow-up-from-line",
       "Upload all files to GitHub",
-      async () => await this.uploadAllFiles(),
+      async () => await this.openUploadAllFilesDialog(),
     );
   }
 
