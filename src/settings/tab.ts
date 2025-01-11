@@ -121,43 +121,43 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           }),
       );
 
-    const saveStrategies = {
+    const uploadStrategies = {
       manual: "Manually",
       interval: "On Interval",
     };
-    const saveStrategySetting = new Setting(containerEl)
-      .setName("Sync strategy")
-      .setDesc("When to sync the local files with the remote repository");
+    const uploadStrategySetting = new Setting(containerEl)
+      .setName("Upload strategy")
+      .setDesc("When to upload local files to remote repository");
 
     let syncInterval = "1";
-    if (this.plugin.settings.syncInterval) {
-      syncInterval = this.plugin.settings.syncInterval.toString();
+    if (this.plugin.settings.uploadInterval) {
+      syncInterval = this.plugin.settings.uploadInterval.toString();
     }
     const intervalSettings = new Setting(containerEl)
-      .setName("Sync interval")
-      .setDesc("Sync interval in minutes between automatic synchronizations")
+      .setName("Upload interval")
+      .setDesc("Upload interval in minutes between automatic uploads")
       .addText((text) =>
         text
           .setPlaceholder("Interval in minutes")
           .setValue(syncInterval)
           .onChange(async (value) => {
-            this.plugin.settings.syncInterval = parseInt(value) || 1;
+            this.plugin.settings.uploadInterval = parseInt(value) || 1;
             await this.plugin.saveSettings();
             // We need to restart the interval if the value is changed
             this.plugin.restartSyncInterval();
           }),
       );
     intervalSettings.setDisabled(
-      this.plugin.settings.syncStrategy !== "interval",
+      this.plugin.settings.uploadStrategy !== "interval",
     );
 
-    saveStrategySetting.addDropdown((dropdown) =>
+    uploadStrategySetting.addDropdown((dropdown) =>
       dropdown
-        .addOptions(saveStrategies)
-        .setValue(this.plugin.settings.syncStrategy)
-        .onChange(async (value: keyof typeof saveStrategies) => {
+        .addOptions(uploadStrategies)
+        .setValue(this.plugin.settings.uploadStrategy)
+        .onChange(async (value: keyof typeof uploadStrategies) => {
           intervalSettings.setDisabled(value !== "interval");
-          this.plugin.settings.syncStrategy = value;
+          this.plugin.settings.uploadStrategy = value;
           await this.plugin.saveSettings();
           if (value === "interval") {
             this.plugin.startSyncInterval();
@@ -252,7 +252,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Show upload modified files button")
+      .setName("Show upload all files button")
       .setDesc("Displays a ribbon button to upload all files")
       .addToggle((toggle) => {
         toggle

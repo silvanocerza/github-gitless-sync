@@ -101,7 +101,7 @@ export default class GitHubSyncPlugin extends Plugin {
     this.syncIntervalId = window.setInterval(
       () => this.uploadModifiedFiles(),
       // Sync interval is set in minutes but setInterval expects milliseconds
-      this.settings.syncInterval * 60 * 1000,
+      this.settings.uploadInterval * 60 * 1000,
     );
     this.registerInterval(this.syncIntervalId);
   }
@@ -176,7 +176,7 @@ export default class GitHubSyncPlugin extends Plugin {
       this.settings.githubRepo,
       this.settings.githubBranch,
     );
-    if (this.settings.syncStrategy == "interval") {
+    if (this.settings.uploadStrategy == "interval") {
       this.restartSyncInterval();
     }
   }
