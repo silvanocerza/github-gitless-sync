@@ -121,25 +121,10 @@ const UploadDialogContent = ({ onCancel }: { onCancel: () => void }) => {
       if (abortController.signal.aborted) {
         return;
       }
-      await plugin.client.uploadFile(
-        plugin.settings.githubOwner,
-        plugin.settings.githubRepo,
-        plugin.settings.githubBranch,
-        file.path,
-      );
-      // Reset dirty state
-      plugin.metadataStore.data[file.path].dirty = false;
-
-      // Gets the new SHA of the file
-      const sha = await plugin.client.getFileSha(
-        plugin.settings.githubOwner,
-        plugin.settings.githubRepo,
-        plugin.settings.githubBranch,
-        file.path,
-      );
-      plugin.metadataStore.data[file.path].sha = sha;
-      await plugin.metadataStore.save();
-
+      await plugin.eventsConsumer.process({
+        type: "modify",
+        filePath: file.path,
+      });
       if (abortController.signal.aborted) {
         // Check abort state only after the uploaded file metadata
         // is updated, otherwise we risk having outdated SHAs
