@@ -25,6 +25,11 @@ export default class GitHubSyncPlugin extends Plugin {
   vaultCreateListener: EventRef | null = null;
   vaultModifyListener: EventRef | null = null;
 
+  async onUserEnable() {
+    // TODO: Add onboarding
+    console.log("Enabled!");
+  }
+
   async onload() {
     await this.loadSettings();
     await this.loadMetadata();
