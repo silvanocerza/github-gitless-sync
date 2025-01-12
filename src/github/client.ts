@@ -186,9 +186,6 @@ export default class GithubClient {
         sha: this.metadataStore.data[filePath].sha,
       }),
     });
-    if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Failed to upload file: ${res.status}`);
-    }
   }
 
   /**
@@ -240,8 +237,5 @@ export default class GithubClient {
         sha: this.metadataStore.data[filePath].sha,
       }),
     });
-    if (res.status < 200 || res.status >= 300) {
-      throw new Error(`Failed to delete file: ${res.status}`);
-    }
   }
 }
