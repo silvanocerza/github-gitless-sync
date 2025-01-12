@@ -3,7 +3,6 @@ import GithubClient, { TreeItem } from "./github/client";
 import MetadataStore, { FileMetadata } from "./metadata-store";
 import EventsListener from "./events/listener";
 import EventsConsumer from "./events/consumer";
-import { type Event } from "./events/types";
 import { GitHubSyncSettings } from "./settings/settings";
 
 export default class SyncManager {
