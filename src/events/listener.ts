@@ -1,4 +1,4 @@
-import { Vault, TAbstractFile } from "obsidian";
+import { Vault, TAbstractFile, TFolder, TFile } from "obsidian";
 import { Event } from "./types";
 import MetadataStore from "../metadata-store";
 import EventsQueue from "./queue";
@@ -14,7 +14,9 @@ export default class EventsListener {
     private metadataStore: MetadataStore,
     private localContentDir: string,
     private repoContentDir: string,
-  ) {
+  ) {}
+
+  start() {
     this.vault.on("create", this.onCreate.bind(this));
     this.vault.on("delete", this.onDelete.bind(this));
     this.vault.on("modify", this.onModify.bind(this));
@@ -33,11 +35,15 @@ export default class EventsListener {
       // The file has not been created in directory that we're syncing with GitHub
       return;
     }
+    if (file instanceof TFolder) {
+      // Skip folders
+      return;
+    }
 
     const data = this.metadataStore.data[file.path];
     if (data && data.justDownloaded) {
       // This file was just downloaded and not created by the user.
-      // It's enough to makr it as non just downloaded.
+      // It's enough to mark it as non just downloaded.
       this.metadataStore.data[file.path].justDownloaded = false;
       await this.metadataStore.save();
       return;
@@ -54,20 +60,27 @@ export default class EventsListener {
     await this.metadataStore.save();
     this.eventsQueue.enqueue({
       type: "create",
-      filePath: file.path,
+      file: file as TFile,
     });
   }
 
-  private async onDelete(file: TAbstractFile) {
-    if (!file.path.startsWith(this.localContentDir)) {
+  private async onDelete(file: TAbstractFile | string) {
+    if (file instanceof TFolder) {
+      // Skip folders
+      return;
+    }
+    const filePath = file instanceof TAbstractFile ? file.path : file;
+    if (!filePath.startsWith(this.localContentDir)) {
       // The file was not in directory that we're syncing with GitHub
       return;
     }
-    delete this.metadataStore.data[file.path];
-    await this.metadataStore.save();
+
+    // We don't delete metadata as we need that info when calling the API
+    // to delete the file.
+    // We'll delete them later.
     this.eventsQueue.enqueue({
       type: "delete",
-      filePath: file.path,
+      filePath: filePath,
     });
   }
 
@@ -76,7 +89,10 @@ export default class EventsListener {
       // The file has not been create in directory that we're syncing with GitHub
       return;
     }
-
+    if (file instanceof TFolder) {
+      // Skip folders
+      return;
+    }
     const data = this.metadataStore.data[file.path];
     if (data && data.justDownloaded) {
       // This file was just downloaded and not modified by the user.
@@ -89,11 +105,15 @@ export default class EventsListener {
     await this.metadataStore.save();
     this.eventsQueue.enqueue({
       type: "modify",
-      filePath: file.path,
+      file: file as TFile,
     });
   }
 
   private async onRename(file: TAbstractFile, oldPath: string) {
+    if (file instanceof TFolder) {
+      // Skip folders
+      return;
+    }
     if (
       !file.path.startsWith(this.localContentDir) &&
       !oldPath.startsWith(this.localContentDir)
@@ -110,7 +130,7 @@ export default class EventsListener {
       // First create the new one
       await this.onCreate(file);
       // Then delete the old one
-      await this.onDelete(file);
+      await this.onDelete(oldPath);
       return;
     } else if (file.path.startsWith(this.localContentDir)) {
       // Only the new file is in the local directory
@@ -118,7 +138,7 @@ export default class EventsListener {
       return;
     } else if (oldPath.startsWith(this.localContentDir)) {
       // Only the old file was in the local directory
-      await this.onDelete(file);
+      await this.onDelete(oldPath);
       return;
     }
   }

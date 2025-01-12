@@ -117,21 +117,16 @@ const UploadDialogContent = ({ onCancel }: { onCancel: () => void }) => {
     // forcing us to retry the failed upload.
     // So parallelization is not an option.
     for (const file of files) {
-      console.log(`Uploading ${file.path}`);
       if (abortController.signal.aborted) {
         return;
       }
-      await plugin.eventsConsumer.process({
-        type: "modify",
-        filePath: file.path,
-      });
+      await plugin.syncManager.uploadFile(file);
       if (abortController.signal.aborted) {
         // Check abort state only after the uploaded file metadata
         // is updated, otherwise we risk having outdated SHAs
         return;
       }
       setCompletedCount((count) => count + 1);
-      console.log(`Uploaded ${file.path}`);
     }
   };
 

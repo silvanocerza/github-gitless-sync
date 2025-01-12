@@ -4,7 +4,7 @@ import MetadataStore from "../metadata-store";
 /**
  * Represents a single item in a tree response from the GitHub API.
  */
-type TreeItem = {
+export type TreeItem = {
   path: string;
   mode: string;
   type: string;
@@ -16,7 +16,7 @@ type TreeItem = {
 /**
  * Represents a git blob response from the GitHub API.
  */
-type BlobFile = {
+export type BlobFile = {
   sha: string;
   node_id: string;
   size: number;
@@ -27,9 +27,11 @@ type BlobFile = {
 
 export default class GithubClient {
   constructor(
-    private vault: Vault,
-    private metadataStore: MetadataStore,
     private token: string,
+    private owner: string,
+    private repo: string,
+    private branch: string,
+    private repoContentDir: string,
   ) {}
 
   headers() {
@@ -42,27 +44,18 @@ export default class GithubClient {
 
   /**
    * Gets the content of a directory in the repo.
-   * If repoContentDir is an empty string all files in the repo will be returned.
+   * Or the whole repo if repoContentDir is an empty string.
    *
-   * @param owner Owner of the repo
-   * @param repo Name of the repo
-   * @param repoContentDir Directory in the repo to download relative to the root of the repo
-   * @param branch Branch to download from
    * @returns Array of files in the directory in the remote repo
    */
-  async getRepoContent(
-    owner: string,
-    repo: string,
-    repoContentDir: string,
-    branch: string,
-  ): Promise<TreeItem[]> {
+  async getRepoContent(): Promise<TreeItem[]> {
     const res = await requestUrl({
-      url: `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`,
+      url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/trees/${this.branch}?recursive=1`,
       headers: this.headers(),
     });
     const files = res.json["tree"].filter(
       (file: TreeItem) =>
-        file.type === "blob" && file.path.startsWith(repoContentDir),
+        file.type === "blob" && file.path.startsWith(this.repoContentDir),
     );
     return files;
   }
@@ -80,132 +73,39 @@ export default class GithubClient {
   }
 
   /**
-   * Downloads a single file from GitHub. If the file already exists locally it will be overwritten.
+   * Create or edit a remote file to GitHub.
    *
-   * @param file file info from the GitHub API
-   * @param repoContentDir directory in the repo to download relative to the root of the repo
-   * @param localContentDir local directory to download to
-   */
-  async downloadFile(
-    file: TreeItem,
-    repoContentDir: string,
-    localContentDir: string,
-  ) {
-    const url = file.url;
-    const destinationFile = file.path.replace(repoContentDir, localContentDir);
-    const fileMetadata = this.metadataStore.data[destinationFile];
-    if (fileMetadata && fileMetadata.sha === file.sha) {
-      // File already exists and has the same SHA, no need to download it again.
-      return;
-    }
-
-    const blob = await this.getBlob(url);
-    const destinationFolder = normalizePath(
-      destinationFile.split("/").slice(0, -1).join("/"),
-    );
-    if (!(await this.vault.adapter.exists(destinationFolder))) {
-      await this.vault.adapter.mkdir(destinationFolder);
-    }
-    this.vault.adapter.writeBinary(
-      normalizePath(destinationFile),
-      Buffer.from(blob.content, "base64"),
-    );
-    this.metadataStore.data[destinationFile] = {
-      localPath: destinationFile,
-      remotePath: file.path,
-      sha: file.sha,
-      dirty: false,
-      justDownloaded: true,
-    };
-    await this.metadataStore.save();
-  }
-
-  /**
-   * Recursively downloads the repo content to the local vault.
-   * The repository directory structure is kept as is.
-   *
-   * @param owner Owner of the repo
-   * @param repo Name of the repo
-   * @param repoContentDir Directory in the repo to download relative to the root of the repo
-   * @param branch Branch to download from
-   * @param localContentDir Local directory to download to
-   */
-  async downloadRepoContent(
-    owner: string,
-    repo: string,
-    repoContentDir: string,
-    branch: string,
-    localContentDir: string,
-  ) {
-    const files = await this.getRepoContent(
-      owner,
-      repo,
-      repoContentDir,
-      branch,
-    );
-
-    await Promise.all(
-      files.map(async (file: TreeItem) =>
-        this.downloadFile(file, repoContentDir, localContentDir),
-      ),
-    );
-  }
-
-  /**
-   * Upload a single file to GitHub.
-   * All the file information needed to upload the file is take form the metadata store.
-   *
-   * @param owner Owner of the repo
-   * @param repo Name of the repo
-   * @param branch Branch to download from
-   * @param filePath local file path to upload
+   * @param remoteFilePath Path to remote file
+   * @param fileContent Content of the file
+   * @param sha SHA of the file
    */
   async uploadFile(
-    owner: string,
-    repo: string,
-    branch: string,
-    filePath: string,
+    remoteFilePath: string,
+    fileContent: ArrayBuffer,
+    sha: string | null,
   ) {
-    const { remotePath } = this.metadataStore.data[filePath];
-
-    const normalizedFilePath = normalizePath(filePath);
-    if (!(await this.vault.adapter.exists(normalizedFilePath))) {
-      throw new Error(`Can't find file ${filePath}`);
-    }
-
-    const buffer = await this.vault.adapter.readBinary(normalizedFilePath);
-    const content = Buffer.from(buffer).toString("base64");
-    const res = await requestUrl({
-      url: `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}`,
+    await requestUrl({
+      url: `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${remoteFilePath}`,
       method: "PUT",
       headers: this.headers(),
       body: JSON.stringify({
-        message: `Edit ${remotePath}`,
-        branch: branch,
-        content: content,
-        sha: this.metadataStore.data[filePath].sha,
+        message: `Edit ${remoteFilePath}`,
+        branch: this.branch,
+        content: Buffer.from(fileContent).toString("base64"),
+        sha: sha,
       }),
     });
   }
 
   /**
-   * Gets the SHA of a file in the remote repo given its local path.
+   * Gets the SHA of a file in the remote repo.
    *
-   * @param owner Owner of the repo
-   * @param repo Name of the repo
-   * @param branch Branch to download from
-   * @param filePath local file path to upload
+   * @param remoteFilePath Path to remote file
    * @returns sha of the file as string
    */
-  async getFileSha(
-    owner: string,
-    repo: string,
-    branch: string,
-    filePath: string,
-  ) {
-    const { remotePath } = this.metadataStore.data[filePath];
+  async getFileSha(remoteFilePath: string) {
     const res = await requestUrl({
-      url: `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}?ref=${branch}`,
+      url: `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${remoteFilePath}?ref=${this.branch}`,
       headers: this.headers(),
     });
     return res.json.sha;
@@ -213,28 +113,19 @@ export default class GithubClient {
 
   /**
    * Delete a single file from GitHub.
-   * All the file information needed to delete the file is take form the metadata store.
    *
-   * @param owner Owner of the repo
-   * @param repo Name of the repo
-   * @param branch Branch to download from
-   * @param filePath local file path that has been deleted
+   * @param remoteFilePath Path to remote file
+   * @param sha SHA of the file
    */
-  async deleteFile(
-    owner: string,
-    repo: string,
-    branch: string,
-    filePath: string,
-  ) {
-    const { remotePath } = this.metadataStore.data[filePath];
-    const res = await requestUrl({
-      url: `https://api.github.com/repos/${owner}/${repo}/contents/${remotePath}`,
+  async deleteFile(remoteFilePath: string, sha: string) {
+    await requestUrl({
+      url: `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${remoteFilePath}`,
       method: "DELETE",
       headers: this.headers(),
       body: JSON.stringify({
-        message: `Delete ${remotePath}`,
-        branch: branch,
-        sha: this.metadataStore.data[filePath].sha,
+        message: `Delete ${remoteFilePath}`,
+        branch: this.branch,
+        sha: sha,
       }),
     });
   }

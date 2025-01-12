@@ -1,4 +1,4 @@
-import { Event } from "./types";
+import type { Event, CreateModifyEvent, DeleteEvent } from "./types";
 
 /**
  * A custom queue to better handle events.
@@ -12,36 +12,37 @@ export default class EventsQueue {
    * would cancel themselves out.
    */
   enqueue(event: Event) {
-    if (!this.eventsQueue.has(event.filePath)) {
+    const filePath = event.type === "delete" ? event.filePath : event.file.path;
+    if (!this.eventsQueue.has(filePath)) {
       // No other event exist for this file, just enqueue it
-      this.eventsQueue.set(event.filePath, event);
+      this.eventsQueue.set(filePath, event);
       return;
     }
 
     if (
-      this.eventsQueue.get(event.filePath)?.type === "create" &&
+      this.eventsQueue.get(filePath)?.type === "create" &&
       event.type === "delete"
     ) {
       // The previous event was a create and the new one is a delete.
       // Just delete the previous one as they would amount to the same outcome.
-      this.eventsQueue.delete(event.filePath);
+      this.eventsQueue.delete(filePath);
     } else if (
-      this.eventsQueue.get(event.filePath)?.type === "delete" &&
+      this.eventsQueue.get(filePath)?.type === "delete" &&
       event.type === "create"
     ) {
       // The old event was a delete and the new one is a create.
       // Delete the old one and enqueue a modify event as it likely
       // that the content changed.
-      this.eventsQueue.delete(event.filePath);
-      this.eventsQueue.set(event.filePath, {
+      this.eventsQueue.delete(filePath);
+      this.eventsQueue.set(filePath, {
         type: "modify",
-        filePath: event.filePath,
+        file: event.file,
       });
     } else {
       // Delete and enqueue the event in all other cases.
       // We first delete the event to change the order of the queue
-      this.eventsQueue.delete(event.filePath);
-      this.eventsQueue.set(event.filePath, event);
+      this.eventsQueue.delete(filePath);
+      this.eventsQueue.set(filePath, event);
     }
   }
 

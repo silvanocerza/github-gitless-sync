@@ -1,20 +1,12 @@
 import { EventRef, Plugin, FileView } from "obsidian";
 import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
-import GithubClient from "./github/client";
 import GitHubSyncSettingsTab from "./settings/tab";
-import MetadataStore from "./metadata-store";
-import EventsListener from "./events/listener";
-import EventsConsumer from "./events/consumer";
-import { type Event } from "./events/types";
 import { UploadDialog } from "./views/upload-all-files-dialog/view";
+import SyncManager from "./sync-manager";
 
 export default class GitHubSyncPlugin extends Plugin {
   settings: GitHubSyncSettings;
-  metadataStore: MetadataStore;
-  client: GithubClient;
-  eventsListener: EventsListener;
-  eventsConsumer: EventsConsumer;
-  syncIntervalId: number | null = null;
+  syncManager: SyncManager;
 
   statusBarItem: HTMLElement | null = null;
   downloadAllRibbonIcon: HTMLElement | null = null;
@@ -33,22 +25,30 @@ export default class GitHubSyncPlugin extends Plugin {
 
   async onload() {
     await this.loadSettings();
-    await this.loadMetadata();
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
 
-    this.client = new GithubClient(
-      this.app.vault,
-      this.metadataStore,
-      this.settings.githubToken,
-    );
+    this.syncManager = new SyncManager(this.app.vault, this.settings);
+    await this.syncManager.loadMetadata();
+
+    if (this.settings.uploadStrategy == "interval") {
+      this.restartSyncInterval();
+    }
+
+    // const res = await this.client.getRepoContent(
+    // this.settings.githubOwner,
+    // this.settings.githubRepo,
+    // this.settings.repoContentDir,
+    // this.settings.githubBranch,
+    // );
+    // console.log(res);
 
     this.app.workspace.onLayoutReady(async () => {
       // Create the events handling only after tha layout is ready to avoid
       // getting spammed with create events.
       // See the official Obsidian docs:
       // https://docs.obsidian.md/Reference/TypeScript+API/Vault/on('create')
-      await this.startEventsHandlers();
+      await this.syncManager.startEventsListener();
 
       // Load the ribbons after layout is ready so they're shown after the core
       // buttons
@@ -78,7 +78,10 @@ export default class GitHubSyncPlugin extends Plugin {
       name: "Download all files to GitHub",
       repeatable: false,
       icon: "arrow-down-from-line",
-      callback: async () => await this.downloadAllFiles(),
+      callback: async () => {
+        await this.syncManager.downloadAllFiles();
+        this.updateStatusBarItem();
+      },
     });
 
     this.addCommand({
@@ -86,7 +89,10 @@ export default class GitHubSyncPlugin extends Plugin {
       name: "Upload modified files to GitHub",
       repeatable: false,
       icon: "refresh-cw",
-      callback: async () => await this.uploadModifiedFiles(),
+      callback: async () => {
+        await this.syncManager.uploadModifiedFiles();
+        this.updateStatusBarItem();
+      },
     });
 
     this.addCommand({
@@ -94,7 +100,18 @@ export default class GitHubSyncPlugin extends Plugin {
       name: "Upload active file to GitHub",
       repeatable: false,
       icon: "arrow-up",
-      callback: async () => await this.uploadActiveFile(),
+      callback: async () => {
+        const activeView = this.app.workspace.getActiveViewOfType(FileView);
+        if (!activeView) {
+          return;
+        }
+        const activeFile = activeView.file;
+        if (!activeFile) {
+          return;
+        }
+        await this.syncManager.uploadFile(activeFile);
+        this.updateStatusBarItem();
+      },
     });
 
     this.addCommand({
@@ -107,68 +124,9 @@ export default class GitHubSyncPlugin extends Plugin {
   }
 
   async onunload() {
+    // TODO: Stop all the things here
+    this.stopSyncInterval();
     console.log("GitHubSyncPlugin unloaded");
-  }
-
-  /**
-   * Starts a new sync interval.
-   * Raises an error if the interval is already running.
-   */
-  startSyncInterval() {
-    if (this.syncIntervalId) {
-      throw new Error("Sync interval is already running");
-    }
-    this.syncIntervalId = window.setInterval(
-      () => this.uploadModifiedFiles(),
-      // Sync interval is set in minutes but setInterval expects milliseconds
-      this.settings.uploadInterval * 60 * 1000,
-    );
-    this.registerInterval(this.syncIntervalId);
-  }
-
-  /**
-   * Stops the currently running sync interval
-   */
-  stopSyncInterval() {
-    if (this.syncIntervalId) {
-      window.clearInterval(this.syncIntervalId);
-      this.syncIntervalId = null;
-    }
-  }
-
-  private async downloadAllFiles() {
-    await this.client.downloadRepoContent(
-      this.settings.githubOwner,
-      this.settings.githubRepo,
-      this.settings.repoContentDir,
-      this.settings.githubBranch,
-      this.settings.localContentDir,
-    );
-    this.updateStatusBarItem();
-  }
-
-  private async uploadModifiedFiles() {
-    await Promise.all(
-      this.eventsListener.flush().map(async (event: Event) => {
-        await this.eventsConsumer.process(event);
-      }),
-    );
-    this.updateStatusBarItem();
-  }
-
-  private async uploadActiveFile() {
-    const activeView = this.app.workspace.getActiveViewOfType(FileView);
-    if (!activeView) {
-      return;
-    }
-    const activeFile = activeView.file;
-    if (!activeFile) {
-      return;
-    }
-    // TODO: Remove the file from eventsListener if it's there
-    // TODO: Upload file
-    // TODO: Update SHA
-    this.updateStatusBarItem();
   }
 
   /**
@@ -179,41 +137,6 @@ export default class GitHubSyncPlugin extends Plugin {
   private async openUploadAllFilesDialog() {
     new UploadDialog(this).open();
     this.updateStatusBarItem();
-  }
-
-  /**
-   * Util function that stops and restart the sync interval
-   */
-  restartSyncInterval() {
-    this.stopSyncInterval();
-    this.startSyncInterval();
-  }
-
-  /**
-   * Starts events listener and consumer.
-   * If the sync strategy is set to "interval", starts the sync interval.
-   */
-  private async startEventsHandlers() {
-    if (this.eventsListener && this.eventsConsumer) {
-      // They've been already started
-      return;
-    }
-    this.eventsListener = new EventsListener(
-      this.app.vault,
-      this.metadataStore,
-      this.settings.localContentDir,
-      this.settings.repoContentDir,
-    );
-    this.eventsConsumer = new EventsConsumer(
-      this.client,
-      this.metadataStore,
-      this.settings.githubOwner,
-      this.settings.githubRepo,
-      this.settings.githubBranch,
-    );
-    if (this.settings.uploadStrategy == "interval") {
-      this.restartSyncInterval();
-    }
   }
 
   showStatusBarItem() {
@@ -255,7 +178,7 @@ export default class GitHubSyncPlugin extends Plugin {
     }
 
     let state = "Unknown";
-    const fileData = this.metadataStore.data[activeFile.path];
+    const fileData = this.syncManager.getFileMetadata(activeFile.path);
     if (!fileData) {
       state = "Untracked";
     } else if (fileData.dirty) {
@@ -274,7 +197,10 @@ export default class GitHubSyncPlugin extends Plugin {
     this.downloadAllRibbonIcon = this.addRibbonIcon(
       "arrow-down-from-line",
       "Download all files from GitHub",
-      async () => await this.downloadAllFiles(),
+      async () => {
+        await this.syncManager.downloadAllFiles();
+        this.updateStatusBarItem();
+      },
     );
   }
 
@@ -290,7 +216,10 @@ export default class GitHubSyncPlugin extends Plugin {
     this.uploadModifiedFilesRibbonIcon = this.addRibbonIcon(
       "refresh-cw",
       "Upload modified files to GitHub",
-      async () => await this.uploadModifiedFiles(),
+      async () => {
+        await this.syncManager.uploadModifiedFiles();
+        this.updateStatusBarItem();
+      },
     );
   }
 
@@ -307,7 +236,18 @@ export default class GitHubSyncPlugin extends Plugin {
     this.uploadCurrentFileRibbonIcon = this.addRibbonIcon(
       "arrow-up",
       "Upload current file to GitHub",
-      async () => await this.uploadActiveFile(),
+      async () => {
+        const activeView = this.app.workspace.getActiveViewOfType(FileView);
+        if (!activeView) {
+          return;
+        }
+        const activeFile = activeView.file;
+        if (!activeFile) {
+          return;
+        }
+        await this.syncManager.uploadFile(activeFile);
+        this.updateStatusBarItem();
+      },
     );
   }
 
@@ -332,16 +272,29 @@ export default class GitHubSyncPlugin extends Plugin {
     this.uploadAllFilesRibbonIcon = null;
   }
 
-  private async loadMetadata() {
-    this.metadataStore = new MetadataStore(this.app.vault);
-    await this.metadataStore.load();
-  }
-
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
 
   async saveSettings() {
     await this.saveData(this.settings);
+  }
+
+  // Proxy methods from sync manager to ease handling the interval
+  // when settings are changed
+  startSyncInterval() {
+    const intervalID = this.syncManager.startSyncInterval(
+      this.settings.uploadInterval,
+    );
+    this.registerInterval(intervalID);
+  }
+
+  stopSyncInterval() {
+    this.syncManager.stopSyncInterval();
+  }
+
+  restartSyncInterval() {
+    this.syncManager.stopSyncInterval();
+    this.syncManager.startSyncInterval(this.settings.uploadInterval);
   }
 }
