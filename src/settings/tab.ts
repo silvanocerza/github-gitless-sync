@@ -85,7 +85,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           }),
       );
 
-    containerEl.createEl("h2", { text: "Sync" });
+    containerEl.createEl("h2", { text: "Folders" });
 
     new Setting(containerEl)
       .setName("Repository content directory")
@@ -120,6 +120,8 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    containerEl.createEl("h2", { text: "Sync" });
 
     const uploadStrategies = {
       manual: "Manually",
