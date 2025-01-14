@@ -1,14 +1,10 @@
 import { Vault, TAbstractFile, TFolder, TFile } from "obsidian";
-import { Event } from "./types";
-import MetadataStore from "../metadata-store";
-import EventsQueue from "./queue";
+import MetadataStore from "./metadata-store";
 
 /**
  * Tracks changes to local sync directory and updates files metadata.
  */
 export default class EventsListener {
-  private eventsQueue: EventsQueue = new EventsQueue();
-
   constructor(
     private vault: Vault,
     private metadataStore: MetadataStore,
@@ -21,13 +17,6 @@ export default class EventsListener {
     this.vault.on("delete", this.onDelete.bind(this));
     this.vault.on("modify", this.onModify.bind(this));
     this.vault.on("rename", this.onRename.bind(this));
-  }
-
-  /**
-   * Returns and empties the events queue.
-   */
-  flush(): Event[] {
-    return this.eventsQueue.flush();
   }
 
   private async onCreate(file: TAbstractFile) {
@@ -70,10 +59,6 @@ export default class EventsListener {
       lastModified: Date.now(),
     };
     await this.metadataStore.save();
-    this.eventsQueue.enqueue({
-      type: "create",
-      file: file as TFile,
-    });
   }
 
   private async onDelete(file: TAbstractFile | string) {
@@ -90,13 +75,6 @@ export default class EventsListener {
     this.metadataStore.data.files[filePath].deleted = true;
     this.metadataStore.data.files[filePath].deletedAt = Date.now();
     await this.metadataStore.save();
-    // We don't delete metadata as we need that info when calling the API
-    // to delete the file.
-    // We'll delete them later.
-    this.eventsQueue.enqueue({
-      type: "delete",
-      filePath: filePath,
-    });
   }
 
   private async onModify(file: TAbstractFile) {
@@ -119,10 +97,6 @@ export default class EventsListener {
     this.metadataStore.data.files[file.path].lastModified = Date.now();
     this.metadataStore.data.files[file.path].dirty = true;
     await this.metadataStore.save();
-    this.eventsQueue.enqueue({
-      type: "modify",
-      file: file as TFile,
-    });
   }
 
   private async onRename(file: TAbstractFile, oldPath: string) {

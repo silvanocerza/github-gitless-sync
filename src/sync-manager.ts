@@ -4,7 +4,7 @@ import GithubClient, {
   NewTreeRequestItem,
 } from "./github/client";
 import MetadataStore, { FileMetadata, Metadata } from "./metadata-store";
-import EventsListener from "./events/listener";
+import EventsListener from "./events-listener";
 import { GitHubSyncSettings } from "./settings/settings";
 
 interface SyncAction {
