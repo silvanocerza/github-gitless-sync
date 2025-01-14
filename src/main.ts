@@ -109,7 +109,7 @@ export default class GitHubSyncPlugin extends Plugin {
         if (!activeFile) {
           return;
         }
-        await this.syncManager.uploadFile(activeFile);
+        // await this.syncManager.uploadFile(activeFile);
         this.updateStatusBarItem();
       },
     });
@@ -245,7 +245,7 @@ export default class GitHubSyncPlugin extends Plugin {
         if (!activeFile) {
           return;
         }
-        await this.syncManager.uploadFile(activeFile);
+        // await this.syncManager.uploadFile(activeFile);
         this.updateStatusBarItem();
       },
     );

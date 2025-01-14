@@ -31,7 +31,7 @@ export default class EventsListener {
   }
 
   private async onCreate(file: TAbstractFile) {
-    if (!file.path.startsWith(this.localContentDir)) {
+    if (!this.isSyncable(file.path)) {
       // The file has not been created in directory that we're syncing with GitHub
       return;
     }
@@ -40,22 +40,34 @@ export default class EventsListener {
       return;
     }
 
-    const data = this.metadataStore.data[file.path];
+    const data = this.metadataStore.data.files[file.path];
     if (data && data.justDownloaded) {
       // This file was just downloaded and not created by the user.
       // It's enough to mark it as non just downloaded.
-      this.metadataStore.data[file.path].justDownloaded = false;
+      this.metadataStore.data.files[file.path].justDownloaded = false;
       await this.metadataStore.save();
       return;
     }
 
-    this.metadataStore.data[file.path] = {
+    let remotePath: string;
+    if (file.path.startsWith(this.localContentDir)) {
+      remotePath = file.path.replace(this.localContentDir, this.repoContentDir);
+    } else if (
+      file.path.startsWith(`${this.vault.configDir}/github-sync-metadata.json`)
+    ) {
+      remotePath = file.path;
+    } else {
+      throw new Error("Unexpected file path");
+    }
+
+    this.metadataStore.data.files[file.path] = {
       localPath: file.path,
-      remotePath: file.path.replace(this.localContentDir, this.repoContentDir),
+      remotePath: remotePath!,
       sha: null,
       dirty: true,
       // This file has been created by the user
       justDownloaded: false,
+      lastModified: Date.now(),
     };
     await this.metadataStore.save();
     this.eventsQueue.enqueue({
@@ -70,11 +82,14 @@ export default class EventsListener {
       return;
     }
     const filePath = file instanceof TAbstractFile ? file.path : file;
-    if (!filePath.startsWith(this.localContentDir)) {
+    if (!this.isSyncable(filePath)) {
       // The file was not in directory that we're syncing with GitHub
       return;
     }
 
+    this.metadataStore.data.files[filePath].deleted = true;
+    this.metadataStore.data.files[filePath].deletedAt = Date.now();
+    await this.metadataStore.save();
     // We don't delete metadata as we need that info when calling the API
     // to delete the file.
     // We'll delete them later.
@@ -85,7 +100,7 @@ export default class EventsListener {
   }
 
   private async onModify(file: TAbstractFile) {
-    if (!file.path.startsWith(this.localContentDir)) {
+    if (!this.isSyncable(file.path)) {
       // The file has not been create in directory that we're syncing with GitHub
       return;
     }
@@ -93,15 +108,16 @@ export default class EventsListener {
       // Skip folders
       return;
     }
-    const data = this.metadataStore.data[file.path];
+    const data = this.metadataStore.data.files[file.path];
     if (data && data.justDownloaded) {
       // This file was just downloaded and not modified by the user.
       // It's enough to makr it as non just downloaded.
-      this.metadataStore.data[file.path].justDownloaded = false;
+      this.metadataStore.data.files[file.path].justDownloaded = false;
       await this.metadataStore.save();
       return;
     }
-    this.metadataStore.data[file.path].dirty = true;
+    this.metadataStore.data.files[file.path].lastModified = Date.now();
+    this.metadataStore.data.files[file.path].dirty = true;
     await this.metadataStore.save();
     this.eventsQueue.enqueue({
       type: "modify",
@@ -114,32 +130,33 @@ export default class EventsListener {
       // Skip folders
       return;
     }
-    if (
-      !file.path.startsWith(this.localContentDir) &&
-      !oldPath.startsWith(this.localContentDir)
-    ) {
+    if (!this.isSyncable(file.path) && !this.isSyncable(oldPath)) {
       // Both are not in directory that we're syncing with GitHub
       return;
     }
 
-    if (
-      file.path.startsWith(this.localContentDir) &&
-      oldPath.startsWith(this.localContentDir)
-    ) {
+    if (this.isSyncable(file.path) && this.isSyncable(oldPath)) {
       // Both files are in the synced directory
       // First create the new one
       await this.onCreate(file);
       // Then delete the old one
       await this.onDelete(oldPath);
       return;
-    } else if (file.path.startsWith(this.localContentDir)) {
+    } else if (this.isSyncable(file.path)) {
       // Only the new file is in the local directory
       await this.onCreate(file);
       return;
-    } else if (oldPath.startsWith(this.localContentDir)) {
+    } else if (this.isSyncable(oldPath)) {
       // Only the old file was in the local directory
       await this.onDelete(oldPath);
       return;
     }
+  }
+
+  private isSyncable(filePath: string) {
+    return (
+      filePath.startsWith(this.localContentDir) ||
+      filePath.startsWith(`${this.vault.configDir}/github-sync-metadata.json`)
+    );
   }
 }

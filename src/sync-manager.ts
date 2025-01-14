@@ -1,9 +1,17 @@
-import { Vault, TFile, normalizePath } from "obsidian";
-import GithubClient, { TreeItem } from "./github/client";
-import MetadataStore, { FileMetadata } from "./metadata-store";
+import { Vault, normalizePath } from "obsidian";
+import GithubClient, {
+  GetTreeResponseItem,
+  NewTreeRequestItem,
+} from "./github/client";
+import MetadataStore, { FileMetadata, Metadata } from "./metadata-store";
 import EventsListener from "./events/listener";
 import EventsConsumer from "./events/consumer";
 import { GitHubSyncSettings } from "./settings/settings";
+
+interface SyncAction {
+  type: "upload" | "download" | "delete_local" | "delete_remote";
+  filePath: string;
+}
 
 export default class SyncManager {
   private metadataStore: MetadataStore;
@@ -23,6 +31,7 @@ export default class SyncManager {
       this.settings.githubRepo,
       this.settings.githubBranch,
       this.settings.repoContentDir,
+      this.vault.configDir,
     );
     this.eventsListener = new EventsListener(
       this.vault,
@@ -34,33 +43,388 @@ export default class SyncManager {
   }
 
   async sync() {
-    // TODO
+    // TODO: Handle cases
+    // 1. Remote manifest not found
+    // 2. Local manifest not found
+    // 3. Remote repo and local vault folder have both some files
+    //
+    // These could very well be first sync, maybe a separate function might be best.
+    // Might be something for onboarding.
+    const { files, sha: treeSha } = await this.client.getRepoContent();
+    const manifest = files[`${this.vault.configDir}/github-sync-metadata.json`];
+
+    if (manifest === undefined && Object.keys(files).length > 0) {
+      const localContentDirExists = await this.vault.adapter.exists(
+        this.settings.localContentDir,
+      );
+      if (localContentDirExists) {
+        const existing = await this.vault.adapter.list(
+          this.settings.localContentDir,
+        );
+        if (
+          (this.settings.localContentDir === "" &&
+            existing.folders.length > 1) ||
+          existing.files.length > 0
+        ) {
+          // There are local and remote files but remote doesn't have a manifest
+          // we don't know what to do in this case
+          throw new Error("Can't sync");
+        } else if (existing.folders.length > 0 || existing.files.length > 0) {
+          // There are local and remote files but remote doesn't have a manifest
+          // we don't know what to do in this case
+          throw new Error("Can't sync");
+        }
+      }
+
+      // There's no remote manifest and there are files in the repo,
+      // though there are no files locally either, so we can just download everything
+      // and sync the remote manifest.
+      await Promise.all(
+        Object.keys(files)
+          .filter((filePath: string) => {
+            if (filePath.startsWith(this.settings.repoContentDir)) {
+              return true;
+            } else if (filePath.startsWith(this.vault.configDir)) {
+              return true;
+            }
+            return false;
+          })
+          .map(async (filePath: string) => {
+            await this.downloadFile(files[filePath], Date.now());
+          }),
+      );
+      const newTreeFiles = Object.keys(files)
+        .map((filePath: string) => ({
+          path: files[filePath].path,
+          mode: files[filePath].mode,
+          type: files[filePath].type,
+          sha: files[filePath].sha,
+        }))
+        .reduce(
+          (
+            acc: { [key: string]: NewTreeRequestItem },
+            item: NewTreeRequestItem,
+          ) => ({ ...acc, [item.path]: item }),
+          {},
+        );
+      // Add files that are in the manifest but not in the tree.
+      await Promise.all(
+        Object.keys(this.metadataStore.data.files).map(
+          async (filePath: string) => {
+            const normalizedPath = normalizePath(filePath);
+            const content = await this.vault.adapter.read(normalizedPath);
+            const { remotePath } = this.metadataStore.data.files[filePath];
+            newTreeFiles[remotePath] = {
+              path: remotePath,
+              mode: "100644",
+              type: "blob",
+              content: content,
+            };
+          },
+        ),
+      );
+      await this.commitSync(newTreeFiles, treeSha);
+      return;
+    }
+
+    const blob = await this.client.getBlob(manifest.url);
+    const remoteMetadata: Metadata = JSON.parse(atob(blob.content));
+
+    const conflicts = this.findConflicts(
+      remoteMetadata.files,
+      this.metadataStore.data.files,
+    );
+    if (conflicts.length > 0) {
+      // TODO: Show conflicts to the user with a callback
+      // Wait for response
+      // Create new action to handle the conflict
+      // Add the new action to the list later on
+      console.log("Conflicts");
+      console.log(conflicts);
+    }
+
+    const actions = this.determineSyncActions(
+      remoteMetadata.files,
+      this.metadataStore.data.files,
+    );
+
+    if (actions.length === 0) {
+      console.log("Nothing to sync");
+      return;
+    } else {
+      console.log("Actions:");
+      console.log(actions);
+    }
+
+    const newTreeFiles: { [key: string]: NewTreeRequestItem } = Object.keys(
+      files,
+    )
+      .map((filePath: string) => ({
+        path: files[filePath].path,
+        mode: files[filePath].mode,
+        type: files[filePath].type,
+        sha: files[filePath].sha,
+      }))
+      .reduce(
+        (
+          acc: { [key: string]: NewTreeRequestItem },
+          item: NewTreeRequestItem,
+        ) => ({ ...acc, [item.path]: item }),
+        {},
+      );
+
+    await Promise.all(
+      actions.map(async (action) => {
+        switch (action.type) {
+          case "upload": {
+            const normalizedPath = normalizePath(action.filePath);
+            const content = await this.vault.adapter.read(normalizedPath);
+            const remotePath = action.filePath.replace(
+              this.settings.localContentDir,
+              this.settings.repoContentDir,
+            );
+            newTreeFiles[remotePath] = {
+              path: remotePath,
+              mode: "100644",
+              type: "blob",
+              content: content,
+            };
+            break;
+          }
+          case "delete_remote": {
+            const { remotePath } =
+              this.metadataStore.data.files[action.filePath];
+            newTreeFiles[remotePath].sha = null;
+            break;
+          }
+          case "download":
+            break;
+          case "delete_local":
+            break;
+        }
+      }),
+    );
+
+    // Download files and delete local files
+    await Promise.all([
+      ...actions
+        .filter((action) => action.type === "download")
+        .map(async (action: SyncAction) => {
+          const remotePath = action.filePath.replace(
+            this.settings.localContentDir,
+            this.settings.repoContentDir,
+          );
+          await this.downloadFile(
+            files[remotePath],
+            remoteMetadata.files[action.filePath].lastModified,
+          );
+        }),
+      ...actions
+        .filter((action) => action.type === "delete_local")
+        .map(async (action: SyncAction) => {
+          await this.deleteLocalFile(action.filePath);
+        }),
+    ]);
+
+    await this.commitSync(newTreeFiles, treeSha);
   }
 
-  async uploadFile(file: TFile) {
-    // TODO: Remove the file from eventsListener if it's there
-    const { remotePath, sha } = this.metadataStore.data[file.path];
-    const normalizedFilePath = normalizePath(file.path);
+  findConflicts(
+    remoteFiles: { [key: string]: FileMetadata },
+    localFiles: { [key: string]: FileMetadata },
+  ): { remoteFile: FileMetadata; localFile: FileMetadata }[] {
+    const commonFiles = Object.keys(remoteFiles).filter(
+      (key) => key in localFiles,
+    );
+
+    return commonFiles
+      .map((filePath: string) => {
+        const remoteFile = remoteFiles[filePath];
+        const localFile = localFiles[filePath];
+
+        // We compare the SHA cause it remote files changes the SHA changes
+        // but not the same happens when the file is modified locally.
+        // So if sha are different and the local file is newer we can't
+        // know for sure which version should be kept.
+        if (
+          remoteFile.sha !== localFile.sha &&
+          remoteFile.lastModified < localFile.lastModified
+        ) {
+          // File is modified on both sides, the user must solve the conflict
+          return {
+            remoteFile: remoteFile,
+            localFile: localFile,
+          };
+        }
+        return null;
+      })
+      .filter(
+        (
+          conflict: {
+            remoteFile: FileMetadata;
+            localFile: FileMetadata;
+          } | null,
+        ) => conflict !== null,
+      );
+  }
+
+  determineSyncActions(
+    remoteFiles: { [key: string]: FileMetadata },
+    localFiles: { [key: string]: FileMetadata },
+  ) {
+    let actions: SyncAction[] = [];
+
+    const commonFiles = Object.keys(remoteFiles).filter(
+      (key) => key in localFiles,
+    );
+
+    // Get diff for common files
+    commonFiles.forEach((filePath: string) => {
+      const remoteFile = remoteFiles[filePath];
+      const localFile = localFiles[filePath];
+      if (remoteFile.deleted && localFile.deleted) {
+        // Nothing to do
+        return;
+      }
+
+      if (
+        remoteFile.sha !== localFile.sha &&
+        remoteFile.lastModified < localFile.lastModified
+      ) {
+        // This is a conflict, we handle it separately
+        // We compare the SHA cause it remote files changes the SHA changes
+        // but not the same happens when the file is modified locally.
+        // So if sha are different and the local file is newer we can't
+        // know for sure which version should be kept.
+      }
+
+      if (remoteFile.deleted && !localFile.deleted) {
+        if ((remoteFile.deletedAt as number) > localFile.lastModified) {
+          actions.push({
+            type: "delete_local",
+            filePath: filePath,
+          });
+        } else if (localFile.lastModified > (remoteFile.deletedAt as number)) {
+          actions.push({ type: "upload", filePath: filePath });
+        }
+      }
+
+      if (!remoteFile.deleted && localFile.deleted) {
+        if (remoteFile.lastModified > (localFile.deletedAt as number)) {
+          actions.push({ type: "download", filePath: filePath });
+        } else if ((localFile.deletedAt as number) > remoteFile.lastModified) {
+          actions.push({
+            type: "delete_remote",
+            filePath: filePath,
+          });
+        }
+      }
+
+      if (remoteFile.lastModified > localFile.lastModified) {
+        actions.push({ type: "download", filePath: filePath });
+      } else if (localFile.lastModified > remoteFile.lastModified) {
+        console.log("Uploading");
+        console.log(filePath);
+        console.log(`localFile.lastModified: ${localFile.lastModified}`);
+        console.log(`remoteFile.lastModified: ${remoteFile.lastModified}`);
+        actions.push({ type: "upload", filePath: filePath });
+      }
+    });
+
+    // Get diff for files in remote but not in local
+    Object.keys(remoteFiles).forEach((filePath: string) => {
+      const remoteFile = remoteFiles[filePath];
+      const localFile = localFiles[filePath];
+      if (localFile) {
+        // Local file exists, we already handled it.
+        // Skip it.
+        return;
+      }
+      if (remoteFile.deleted) {
+        // Remote is deleted but we don't have it locally.
+        // Nothing to do.
+        // TODO: Maybe we need to remove remote reference too?
+      } else {
+        actions.push({ type: "download", filePath: filePath });
+      }
+    });
+
+    // Get diff for files in local but not in remote
+    Object.keys(localFiles).forEach((filePath: string) => {
+      const remoteFile = remoteFiles[filePath];
+      const localFile = localFiles[filePath];
+      if (remoteFile) {
+        // Remote file exists, we already handled it.
+        // Skip it.
+        return;
+      }
+      if (localFile.deleted) {
+        // Local is deleted and remote doesn't exist.
+        // Just remove the local reference.
+      } else {
+        actions.push({ type: "upload", filePath: filePath });
+      }
+    });
+
+    return actions;
+  }
+
+  async commitSync(
+    treeFiles: { [key: string]: NewTreeRequestItem },
+    baseTreeSha: string,
+  ) {
+    // Update local sync time
+    this.metadataStore.data.lastSync = Date.now();
+    this.metadataStore.save();
+
+    // Update manifest in list of new tree items
+    delete treeFiles[`${this.vault.configDir}/github-sync-metadata.json`].sha;
+    treeFiles[`${this.vault.configDir}/github-sync-metadata.json`].content =
+      JSON.stringify(this.metadataStore.data);
+
+    // Create the new tree
+    const newTree: { tree: NewTreeRequestItem[]; base_tree: string } = {
+      tree: Object.keys(treeFiles).map(
+        (filePath: string) => treeFiles[filePath],
+      ),
+      base_tree: baseTreeSha,
+    };
+    const newTreeSha = await this.client.createTree(newTree);
+
+    const branchHeadSha = await this.client.getBranchHeadSha();
+
+    const commitSha = await this.client.createCommit(
+      "Sync",
+      newTreeSha,
+      branchHeadSha,
+    );
+
+    await this.client.updateBranchHead(commitSha);
+  }
+
+  async uploadFile(filePath: string) {
+    const { remotePath, sha } = this.metadataStore.data.files[filePath];
+    const normalizedFilePath = normalizePath(filePath);
     if (!(await this.vault.adapter.exists(normalizedFilePath))) {
-      throw new Error(`Can't find file ${file.path}`);
+      throw new Error(`Can't find file ${filePath}`);
     }
     const fileContent = await this.vault.adapter.readBinary(normalizedFilePath);
     await this.client.uploadFile(remotePath, fileContent, sha);
     // Reset dirty state
-    this.metadataStore.data[file.path].dirty = false;
+    this.metadataStore.data.files[filePath].dirty = false;
     // Gets the new SHA of the file
     const newSha = await this.client.getFileSha(remotePath);
-    this.metadataStore.data[file.path].sha = newSha;
+    this.metadataStore.data.files[filePath].sha = newSha;
     this.metadataStore.save();
   }
 
-  async downloadFile(file: TreeItem) {
+  async downloadFile(file: GetTreeResponseItem, lastModified: number) {
     const url = file.url;
     const destinationFile = file.path.replace(
       this.settings.repoContentDir,
       this.settings.localContentDir,
     );
-    const fileMetadata = this.metadataStore.data[destinationFile];
+    const fileMetadata = this.metadataStore.data.files[destinationFile];
     if (fileMetadata && fileMetadata.sha === file.sha) {
       // File already exists and has the same SHA, no need to download it again.
       return;
@@ -77,33 +441,58 @@ export default class SyncManager {
       normalizePath(destinationFile),
       Buffer.from(blob.content, "base64"),
     );
-    this.metadataStore.data[destinationFile] = {
+    this.metadataStore.data.files[destinationFile] = {
       localPath: destinationFile,
       remotePath: file.path,
       sha: file.sha,
       dirty: false,
       justDownloaded: true,
+      lastModified: lastModified,
     };
     await this.metadataStore.save();
   }
 
+  async deleteLocalFile(filePath: string) {
+    const normalizedPath = normalizePath(filePath);
+    await this.vault.adapter.remove(normalizedPath);
+    this.metadataStore.data.files[filePath].deleted = true;
+    this.metadataStore.data.files[filePath].deletedAt = Date.now();
+    this.metadataStore.save();
+  }
+
+  async deleteRemoteFile(filePath: string) {
+    const { remotePath, sha } = this.metadataStore.data.files[filePath];
+    if (!sha) {
+      // File was never uploaded, no need to delete it
+      // This is unlikely to happen but we handle it anyway
+      return;
+    }
+    await this.client.deleteFile(remotePath, sha);
+    this.metadataStore.save();
+  }
+
   async deleteFile(filePath: string) {
-    const { remotePath, sha } = this.metadataStore.data[filePath];
+    const { remotePath, sha } = this.metadataStore.data.files[filePath];
     if (!sha) {
       // File was never uploaded, no need to delete it
       return;
     }
     await this.client.deleteFile(remotePath, sha);
-    // File has been deleted, no need to keep track of it anymore
-    delete this.metadataStore.data[filePath];
     this.metadataStore.save();
   }
 
   async downloadAllFiles() {
-    const files = await this.client.getRepoContent();
+    const { files } = await this.client.getRepoContent();
 
     await Promise.all(
-      files.map(async (file: TreeItem) => await this.downloadFile(file)),
+      Object.keys(files)
+        .filter((filePath: string) =>
+          filePath.startsWith(this.settings.repoContentDir),
+        )
+        .map(
+          async (filePath: string) =>
+            await this.downloadFile(files[filePath], Date.now()),
+        ),
     );
   }
 
@@ -119,10 +508,58 @@ export default class SyncManager {
 
   async loadMetadata() {
     await this.metadataStore.load();
+    if (Object.keys(this.metadataStore.data.files).length === 0) {
+      // Must be the first time we run, initialize the metadata store
+      // with the files from the config directory
+      let files = [];
+      let folders = [this.vault.configDir];
+      while (folders.length > 0) {
+        const folder = folders.pop();
+        if (!folder) {
+          continue;
+        }
+        const res = await this.vault.adapter.list(folder);
+        files.push(...res.files);
+        folders.push(...res.folders);
+      }
+      files.forEach((filePath: string) => {
+        if (filePath === `${this.vault.configDir}/workspace.json`) {
+          // Obsidian recommends not syncing the workspace file
+          return;
+        }
+        if (filePath.startsWith(`${this.vault.configDir}/plugins`)) {
+          // Let's not sync plugins for the time being
+          return;
+        }
+        this.metadataStore.data.files[filePath] = {
+          localPath: filePath,
+          // The config dir is always stored in the repo root so we use
+          // the same path for remote
+          remotePath: filePath,
+          sha: null,
+          dirty: false,
+          justDownloaded: false,
+          lastModified: Date.now(),
+        };
+      });
+      // Add itself, if we're here the manifest file doesn't exist
+      // so it can't add itself to the list of files
+      this.metadataStore.data.files[
+        `${this.vault.configDir}/github-sync-metadata.json`
+      ] = {
+        localPath: `${this.vault.configDir}/github-sync-metadata.json`,
+        remotePath: `${this.vault.configDir}/github-sync-metadata.json`,
+        sha: null,
+        dirty: false,
+        justDownloaded: false,
+        lastModified: Date.now(),
+      };
+      this.metadataStore.save();
+    }
   }
 
   getFileMetadata(filePath: string): FileMetadata {
-    return this.metadataStore.data[filePath];
+    return this.metadataStore.data.files[filePath];
   }
 
   async startEventsListener() {
@@ -138,9 +575,10 @@ export default class SyncManager {
       throw new Error("Sync interval is already running");
     }
     this.syncIntervalId = window.setInterval(
-      () => this.uploadModifiedFiles(),
+      () => this.sync(),
       // Sync interval is set in minutes but setInterval expects milliseconds
-      minutes * 60 * 1000,
+      // minutes * 60 * 1000,
+      10000,
     );
     return this.syncIntervalId;
   }

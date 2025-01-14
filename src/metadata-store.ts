@@ -20,10 +20,17 @@ export interface FileMetadata {
   // downloaded it will trigger a 'create' or 'modify' event.
   // This is a problem as we can't know whether an event has been triggered by us or the user.
   justDownloaded: boolean;
+  // The last time the file was modified
+  lastModified: number;
+  // Whether the file has been deleted
+  deleted?: boolean | null;
+  // When the file was deleted
+  deletedAt?: number | null;
 }
 
 export interface Metadata {
-  [key: string]: FileMetadata;
+  lastSync: number;
+  files: { [key: string]: FileMetadata };
 }
 
 /**
@@ -50,7 +57,7 @@ export default class MetadataStore {
       const content = await this.vault.adapter.read(this.metadataFile);
       this.data = JSON.parse(content);
     } else {
-      this.data = {};
+      this.data = { lastSync: 0, files: {} };
     }
   }
 
