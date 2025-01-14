@@ -2,6 +2,7 @@ import { EventRef, Plugin, FileView } from "obsidian";
 import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
 import GitHubSyncSettingsTab from "./settings/tab";
 import SyncManager from "./sync-manager";
+import { FileMetadata } from "./metadata-store";
 
 export default class GitHubSyncPlugin extends Plugin {
   settings: GitHubSyncSettings;
@@ -24,7 +25,11 @@ export default class GitHubSyncPlugin extends Plugin {
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
 
-    this.syncManager = new SyncManager(this.app.vault, this.settings);
+    this.syncManager = new SyncManager(
+      this.app.vault,
+      this.settings,
+      this.onConflicts.bind(this),
+    );
     await this.syncManager.loadMetadata();
 
     if (this.settings.uploadStrategy == "interval") {
@@ -143,6 +148,26 @@ export default class GitHubSyncPlugin extends Plugin {
   hideUploadModifiedFilesRibbonIcon() {
     this.uploadModifiedFilesRibbonIcon?.remove();
     this.uploadModifiedFilesRibbonIcon = null;
+  }
+
+  async onConflicts(
+    conflicts: { remoteFile: FileMetadata; localFile: FileMetadata }[],
+  ): Promise<boolean[]> {
+    return await Promise.all(
+      conflicts.map(
+        async ({
+          remoteFile,
+          localFile,
+        }: {
+          remoteFile: FileMetadata;
+          localFile: FileMetadata;
+        }) => {
+          // TODO: Add a proper conflict resolution view
+          // This way remote files are always preferred
+          return true;
+        },
+      ),
+    );
   }
 
   async loadSettings() {

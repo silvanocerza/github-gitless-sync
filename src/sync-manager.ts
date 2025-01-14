@@ -12,6 +12,10 @@ interface SyncAction {
   filePath: string;
 }
 
+type OnConflictsCallback = (
+  conflicts: { remoteFile: FileMetadata; localFile: FileMetadata }[],
+) => Promise<boolean[]>;
+
 export default class SyncManager {
   private metadataStore: MetadataStore;
   private client: GithubClient;
@@ -21,6 +25,7 @@ export default class SyncManager {
   constructor(
     private vault: Vault,
     private settings: GitHubSyncSettings,
+    private onConflicts: OnConflictsCallback,
   ) {
     this.metadataStore = new MetadataStore(this.vault);
     this.client = new GithubClient(
@@ -131,6 +136,7 @@ export default class SyncManager {
       remoteMetadata.files,
       this.metadataStore.data.files,
     );
+    let conflictResolutions: SyncAction[] = [];
     if (conflicts.length > 0) {
       // TODO: Show conflicts to the user with a callback
       // Wait for response
@@ -138,12 +144,30 @@ export default class SyncManager {
       // Add the new action to the list later on
       console.log("Conflicts");
       console.log(conflicts);
+      (await this.onConflicts(conflicts)).forEach(
+        (resolution: boolean, index: number) => {
+          if (resolution) {
+            conflictResolutions.push({
+              type: "download",
+              filePath: conflicts[index].remoteFile.localPath,
+            });
+          } else {
+            conflictResolutions.push({
+              type: "upload",
+              filePath: conflicts[index].localFile.localPath,
+            });
+          }
+        },
+      );
     }
 
-    const actions = this.determineSyncActions(
-      remoteMetadata.files,
-      this.metadataStore.data.files,
-    );
+    const actions = [
+      ...this.determineSyncActions(
+        remoteMetadata.files,
+        this.metadataStore.data.files,
+      ),
+      ...conflictResolutions,
+    ];
 
     if (actions.length === 0) {
       console.log("Nothing to sync");
