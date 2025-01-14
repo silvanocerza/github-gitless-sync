@@ -10,10 +10,7 @@ export interface GitHubSyncSettings {
   syncOnStartup: boolean;
   conflictHandling: "ignore" | "ask" | "overwrite";
   showStatusBarItem: boolean;
-  showDownloadRibbonButton: boolean;
-  showUploadModifiedFilesRibbonButton: boolean;
-  showUploadActiveFileRibbonButton: boolean;
-  showUploadAllFilesRibbonButton: boolean;
+  showSyncRibbonButton: boolean;
 }
 
 export const DEFAULT_SETTINGS: GitHubSyncSettings = {
@@ -28,8 +25,5 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   syncOnStartup: false,
   conflictHandling: "ask",
   showStatusBarItem: true,
-  showDownloadRibbonButton: true,
-  showUploadModifiedFilesRibbonButton: true,
-  showUploadActiveFileRibbonButton: true,
-  showUploadAllFilesRibbonButton: true,
+  showSyncRibbonButton: true,
 };

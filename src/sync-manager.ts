@@ -5,7 +5,6 @@ import GithubClient, {
 } from "./github/client";
 import MetadataStore, { FileMetadata, Metadata } from "./metadata-store";
 import EventsListener from "./events/listener";
-import EventsConsumer from "./events/consumer";
 import { GitHubSyncSettings } from "./settings/settings";
 
 interface SyncAction {
@@ -17,7 +16,6 @@ export default class SyncManager {
   private metadataStore: MetadataStore;
   private client: GithubClient;
   private eventsListener: EventsListener;
-  private eventsConsumer: EventsConsumer;
   private syncIntervalId: number | null = null;
 
   constructor(
@@ -39,7 +37,6 @@ export default class SyncManager {
       this.settings.localContentDir,
       this.settings.repoContentDir,
     );
-    this.eventsConsumer = new EventsConsumer(this);
   }
 
   async sync() {
@@ -296,6 +293,7 @@ export default class SyncManager {
         // but not the same happens when the file is modified locally.
         // So if sha are different and the local file is newer we can't
         // know for sure which version should be kept.
+        return;
       }
 
       if (remoteFile.deleted && !localFile.deleted) {
@@ -321,6 +319,10 @@ export default class SyncManager {
       }
 
       if (remoteFile.lastModified > localFile.lastModified) {
+        console.log("Downloading");
+        console.log(filePath);
+        console.log(`localFile.lastModified: ${localFile.lastModified}`);
+        console.log(`remoteFile.lastModified: ${remoteFile.lastModified}`);
         actions.push({ type: "download", filePath: filePath });
       } else if (localFile.lastModified > remoteFile.lastModified) {
         console.log("Uploading");
@@ -402,22 +404,6 @@ export default class SyncManager {
     await this.client.updateBranchHead(commitSha);
   }
 
-  async uploadFile(filePath: string) {
-    const { remotePath, sha } = this.metadataStore.data.files[filePath];
-    const normalizedFilePath = normalizePath(filePath);
-    if (!(await this.vault.adapter.exists(normalizedFilePath))) {
-      throw new Error(`Can't find file ${filePath}`);
-    }
-    const fileContent = await this.vault.adapter.readBinary(normalizedFilePath);
-    await this.client.uploadFile(remotePath, fileContent, sha);
-    // Reset dirty state
-    this.metadataStore.data.files[filePath].dirty = false;
-    // Gets the new SHA of the file
-    const newSha = await this.client.getFileSha(remotePath);
-    this.metadataStore.data.files[filePath].sha = newSha;
-    this.metadataStore.save();
-  }
-
   async downloadFile(file: GetTreeResponseItem, lastModified: number) {
     const url = file.url;
     const destinationFile = file.path.replace(
@@ -458,52 +444,6 @@ export default class SyncManager {
     this.metadataStore.data.files[filePath].deleted = true;
     this.metadataStore.data.files[filePath].deletedAt = Date.now();
     this.metadataStore.save();
-  }
-
-  async deleteRemoteFile(filePath: string) {
-    const { remotePath, sha } = this.metadataStore.data.files[filePath];
-    if (!sha) {
-      // File was never uploaded, no need to delete it
-      // This is unlikely to happen but we handle it anyway
-      return;
-    }
-    await this.client.deleteFile(remotePath, sha);
-    this.metadataStore.save();
-  }
-
-  async deleteFile(filePath: string) {
-    const { remotePath, sha } = this.metadataStore.data.files[filePath];
-    if (!sha) {
-      // File was never uploaded, no need to delete it
-      return;
-    }
-    await this.client.deleteFile(remotePath, sha);
-    this.metadataStore.save();
-  }
-
-  async downloadAllFiles() {
-    const { files } = await this.client.getRepoContent();
-
-    await Promise.all(
-      Object.keys(files)
-        .filter((filePath: string) =>
-          filePath.startsWith(this.settings.repoContentDir),
-        )
-        .map(
-          async (filePath: string) =>
-            await this.downloadFile(files[filePath], Date.now()),
-        ),
-    );
-  }
-
-  async uploadModifiedFiles() {
-    // We upload files sequentially to avoid conflicts.
-    // GitHub rejects commits if they're made in fast succession, thus
-    // forcing us to retry the failed upload.
-    // So parallelization is not an option.
-    for (const event of this.eventsListener.flush()) {
-      await this.eventsConsumer.process(event);
-    }
   }
 
   async loadMetadata() {
@@ -577,8 +517,7 @@ export default class SyncManager {
     this.syncIntervalId = window.setInterval(
       () => this.sync(),
       // Sync interval is set in minutes but setInterval expects milliseconds
-      // minutes * 60 * 1000,
-      10000,
+      minutes * 60 * 1000,
     );
     return this.syncIntervalId;
   }

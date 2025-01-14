@@ -1,5 +1,4 @@
-import { Vault, requestUrl, normalizePath } from "obsidian";
-import MetadataStore, { Metadata } from "../metadata-store";
+import { requestUrl } from "obsidian";
 
 export type RepoContent = {
   files: { [key: string]: GetTreeResponseItem };
@@ -131,63 +130,5 @@ export default class GithubClient {
       headers: this.headers(),
     });
     return res.json;
-  }
-
-  /**
-   * Create or edit a remote file to GitHub.
-   *
-   * @param remoteFilePath Path to remote file
-   * @param fileContent Content of the file
-   * @param sha SHA of the file
-   */
-  async uploadFile(
-    remoteFilePath: string,
-    fileContent: ArrayBuffer,
-    sha: string | null,
-  ) {
-    await requestUrl({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${remoteFilePath}`,
-      method: "PUT",
-      headers: this.headers(),
-      body: JSON.stringify({
-        message: `Edit ${remoteFilePath}`,
-        branch: this.branch,
-        content: Buffer.from(fileContent).toString("base64"),
-        sha: sha,
-      }),
-    });
-  }
-
-  /**
-   * Gets the SHA of a file in the remote repo.
-   *
-   * @param remoteFilePath Path to remote file
-   * @returns sha of the file as string
-   */
-  async getFileSha(remoteFilePath: string) {
-    const res = await requestUrl({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${remoteFilePath}?ref=${this.branch}`,
-      headers: this.headers(),
-    });
-    return res.json.sha;
-  }
-
-  /**
-   * Delete a single file from GitHub.
-   *
-   * @param remoteFilePath Path to remote file
-   * @param sha SHA of the file
-   */
-  async deleteFile(remoteFilePath: string, sha: string) {
-    await requestUrl({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${remoteFilePath}`,
-      method: "DELETE",
-      headers: this.headers(),
-      body: JSON.stringify({
-        message: `Delete ${remoteFilePath}`,
-        branch: this.branch,
-        sha: sha,
-      }),
-    });
   }
 }

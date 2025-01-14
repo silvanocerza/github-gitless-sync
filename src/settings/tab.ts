@@ -218,71 +218,18 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Show download all files button")
-      .setDesc(
-        "Displays a ribbon button to download all files from the remote repository",
-      )
+      .setName("Show sync button")
+      .setDesc("Displays a ribbon button to sync files")
       .addToggle((toggle) => {
         toggle
-          .setValue(this.plugin.settings.showDownloadRibbonButton)
+          .setValue(this.plugin.settings.showSyncRibbonButton)
           .onChange((value) => {
-            this.plugin.settings.showDownloadRibbonButton = value;
+            this.plugin.settings.showSyncRibbonButton = value;
             this.plugin.saveSettings();
             if (value) {
-              this.plugin.showDownloadAllRibbonIcon();
-            } else {
-              this.plugin.hideDownloadAllRibbonIcon();
-            }
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Show upload modified files button")
-      .setDesc("Displays a ribbon button to upload modified files")
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.showUploadModifiedFilesRibbonButton)
-          .onChange((value) => {
-            this.plugin.settings.showUploadModifiedFilesRibbonButton = value;
-            this.plugin.saveSettings();
-            if (value) {
-              this.plugin.showUploadModifiedFilesRibbonIcon();
+              this.plugin.showSyncRibbonIcon();
             } else {
               this.plugin.hideUploadModifiedFilesRibbonIcon();
-            }
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Show upload active file button")
-      .setDesc("Displays a ribbon button to upload active file")
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.showUploadActiveFileRibbonButton)
-          .onChange((value) => {
-            this.plugin.settings.showUploadActiveFileRibbonButton = value;
-            this.plugin.saveSettings();
-            if (value) {
-              this.plugin.showUploadActiveFileRibbonIcon();
-            } else {
-              this.plugin.hideUploadActiveFileRibbonIcon();
-            }
-          });
-      });
-
-    new Setting(containerEl)
-      .setName("Show upload all files button")
-      .setDesc("Displays a ribbon button to upload all files")
-      .addToggle((toggle) => {
-        toggle
-          .setValue(this.plugin.settings.showUploadAllFilesRibbonButton)
-          .onChange((value) => {
-            this.plugin.settings.showUploadAllFilesRibbonButton = value;
-            this.plugin.saveSettings();
-            if (value) {
-              this.plugin.showUploadAllFilesRibbonIcon();
-            } else {
-              this.plugin.hideUploadAllFilesRibbonIcon();
             }
           });
       });
