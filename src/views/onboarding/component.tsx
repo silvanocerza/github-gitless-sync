@@ -1,14 +1,28 @@
 import { useState, useEffect } from "react";
 
-type Step =
-  | "welcome"
-  | "repo"
-  | "token"
-  | "folders"
-  | "sync"
-  | "interface"
-  | "first_sync"
-  | "done";
+const STEPS = [
+  "welcome",
+  "repo",
+  "token",
+  "folders",
+  "sync",
+  "interface",
+  "first_sync",
+  "done",
+] as const;
+
+type Step = (typeof STEPS)[number];
+
+type StepData = {
+  repo?: { owner: string; repo: string; branch: string };
+  token?: { token: string };
+  folders?: { repoFolder: string; vaultFolder: string };
+  sync?: {
+    mode: "manual" | "interval";
+    syncOnStart: boolean;
+    onConflict: "ignore" | "ask" | "overwrite";
+  };
+};
 
 const WelcomeStepComponent = () => {
   return (
@@ -34,20 +48,12 @@ const WelcomeStepComponent = () => {
 };
 
 const RepoStepComponent = ({
-  setIsValid,
+  values = { owner: "", repo: "", branch: "" },
+  onChange,
 }: {
-  setIsValid: (valid: boolean) => void;
+  values?: { owner: string; repo: string; branch: string };
+  onChange: (values: { owner: string; repo: string; branch: string }) => void;
 }) => {
-  const [owner, setOwner] = useState("");
-  const [repo, setRepo] = useState("");
-  const [branch, setBranch] = useState("");
-
-  useEffect(() => {
-    setIsValid(
-      owner.trim() !== "" && repo.trim() !== "" && branch.trim() !== "",
-    );
-  }, [owner, repo, branch]);
-
   return (
     <div
       style={{
@@ -86,24 +92,24 @@ const RepoStepComponent = ({
           spellCheck="false"
           placeholder="Owner"
           style={{ width: "100%" }}
-          value={owner}
-          onChange={(e) => setOwner(e.target.value)}
+          value={values.owner}
+          onChange={(e) => onChange({ ...values, owner: e.target.value })}
         />
         <input
           type="text"
           spellCheck="false"
           placeholder="Repository"
           style={{ width: "100%" }}
-          value={repo}
-          onChange={(e) => setRepo(e.target.value)}
+          value={values.repo}
+          onChange={(e) => onChange({ ...values, repo: e.target.value })}
         />
         <input
           type="text"
           spellCheck="false"
           placeholder="Branch"
           style={{ width: "100%" }}
-          value={branch}
-          onChange={(e) => setBranch(e.target.value)}
+          value={values.branch}
+          onChange={(e) => onChange({ ...values, branch: e.target.value })}
         />
       </div>
     </div>
@@ -111,16 +117,12 @@ const RepoStepComponent = ({
 };
 
 const TokenStepComponent = ({
-  setIsValid,
+  values = { token: "" },
+  onChange,
 }: {
-  setIsValid: (valid: boolean) => void;
+  values?: { token: string };
+  onChange: (values: { token: string }) => void;
 }) => {
-  const [token, setToken] = useState("");
-
-  useEffect(() => {
-    setIsValid(token.trim() !== "");
-  }, [token]);
-
   return (
     <div
       style={{
@@ -164,14 +166,20 @@ const TokenStepComponent = ({
         spellCheck="false"
         placeholder="Token"
         style={{ width: "100%" }}
-        value={token}
-        onChange={(e) => setToken(e.target.value)}
+        value={values.token}
+        onChange={(e) => onChange({ token: e.target.value })}
       />
     </div>
   );
 };
 
-const FoldersStepComponent = () => {
+const FoldersStepComponent = ({
+  values = { repoFolder: "", vaultFolder: "" },
+  onChange,
+}: {
+  values?: { repoFolder: string; vaultFolder: string };
+  onChange: (values: { repoFolder: string; vaultFolder: string }) => void;
+}) => {
   return (
     <div
       style={{
@@ -200,12 +208,16 @@ const FoldersStepComponent = () => {
           type="text"
           spellCheck="false"
           placeholder="Repository folder"
+          value={values.repoFolder}
+          onChange={(e) => onChange({ ...values, repoFolder: e.target.value })}
           style={{ width: "100%" }}
         />
         <input
           type="text"
           spellCheck="false"
           placeholder="Vault folder"
+          value={values.vaultFolder}
+          onChange={(e) => onChange({ ...values, vaultFolder: e.target.value })}
           style={{ width: "100%" }}
         />
       </div>
@@ -213,13 +225,21 @@ const FoldersStepComponent = () => {
   );
 };
 
-const SyncSettingsStepComponent = () => {
-  const [syncMode, setSyncMode] = useState<"manual" | "interval">("manual");
-  const [syncOnStart, setSyncOnStart] = useState(false);
-  const [onConflict, setOnConflict] = useState<"ignore" | "ask" | "overwrite">(
-    "overwrite",
-  );
-
+const SyncSettingsStepComponent = ({
+  values = { mode: "manual", syncOnStart: false, onConflict: "overwrite" },
+  onChange,
+}: {
+  values?: {
+    mode: "manual" | "interval";
+    syncOnStart: boolean;
+    onConflict: "ignore" | "ask" | "overwrite";
+  };
+  onChange: (values: {
+    mode: "manual" | "interval";
+    syncOnStart: boolean;
+    onConflict: "ignore" | "ask" | "overwrite";
+  }) => void;
+}) => {
   return (
     <div
       style={{
@@ -236,18 +256,25 @@ const SyncSettingsStepComponent = () => {
       </p>
       <select
         className="dropdown"
-        value={syncMode}
-        onChange={(e) => setSyncMode(e.target.value)}
+        value={values.mode}
+        onChange={(e) =>
+          onChange({
+            ...values,
+            mode: e.target.value as typeof values.mode,
+          })
+        }
       >
         <option value="manual">Manually</option>
         <option value="interval">On Interval</option>
       </select>
       <p>Optionally you can sync every time you open Obsidian.</p>
       <div
-        className={`checkbox-container ${syncOnStart ? "is-enabled" : ""}`}
-        onClick={() => setSyncOnStart(!syncOnStart)}
+        className={`checkbox-container ${values.syncOnStart ? "is-enabled" : ""}`}
+        onClick={() =>
+          onChange({ ...values, syncOnStart: !values.syncOnStart })
+        }
       >
-        <input type="checkbox" checked={syncOnStart} />
+        <input type="checkbox" readOnly={true} checked={values.syncOnStart} />
       </div>
       <p>In case of conflicts you can choose how to handle them.</p>
       <p>
@@ -257,8 +284,13 @@ const SyncSettingsStepComponent = () => {
       <select
         className="dropdown"
         disabled={true}
-        value={onConflict}
-        onChange={(e) => setOnConflict(e.target.value)}
+        value={values.onConflict}
+        onChange={(e) =>
+          onChange({
+            ...values,
+            onConflict: e.target.value as typeof values.onConflict,
+          })
+        }
       >
         <option value="ignore">Ignore remote file</option>
         <option value="ask">Ask</option>
@@ -306,57 +338,51 @@ const FirstSyncStepComponent = ({
 };
 
 const OnBoardingComponent = () => {
-  const [step, setStep] = useState<Step>("welcome");
-
   // It starts as true because the first step is just a welcome message
   // so the button is already enabled.
-  const [isValid, setIsValid] = useState(true);
+  const [isValid, setIsValid] = useState<boolean>(true);
+  const [step, setStep] = useState<Step>("welcome");
+  const [stepData, setStepData] = useState<StepData>({});
+
+  const updateStepData = (step: Step, data: StepData[keyof StepData]) => {
+    setStepData((stepData) => {
+      return {
+        ...stepData,
+        [step]: data,
+      };
+    });
+  };
+
+  const isStepValid = (step: Step) => {
+    switch (step) {
+      // Only these steps have required data, the others don't
+      // so the step is automatically valid
+      case "repo":
+        const { owner, repo, branch } = stepData.repo ?? {};
+        return Boolean(owner && repo && branch);
+      case "token":
+        return Boolean(stepData.token?.token);
+      case "sync":
+      default:
+        return true;
+    }
+  };
+
+  useEffect(() => {
+    setIsValid(isStepValid(step));
+  }, [step, stepData]);
 
   const previousStep = () => {
-    setStep((step) => {
-      switch (step) {
-        case "welcome":
-          return "welcome";
-        case "repo":
-          // Reset the valid state to true since we come back to welcome
-          setIsValid(true);
-          return "welcome";
-        case "token":
-          return "repo";
-        case "folders":
-          return "token";
-        case "sync":
-          return "folders";
-        case "interface":
-          return "sync";
-        case "first_sync":
-          return "interface";
-        case "done":
-          return "done";
-      }
+    setStep((currentStep) => {
+      const currentIndex = STEPS.indexOf(currentStep);
+      return STEPS[currentIndex - 1] ?? STEPS[0];
     });
   };
 
   const nextStep = () => {
-    setStep((step) => {
-      switch (step) {
-        case "welcome":
-          return "repo";
-        case "repo":
-          return "token";
-        case "token":
-          return "folders";
-        case "folders":
-          return "sync";
-        case "sync":
-          return "interface";
-        case "interface":
-          return "first_sync";
-        case "first_sync":
-          return "done";
-        case "done":
-          return "done";
-      }
+    setStep((currentStep) => {
+      const currentIndex = STEPS.indexOf(currentStep);
+      return STEPS[currentIndex + 1] ?? STEPS[STEPS.length - 1];
     });
   };
 
@@ -365,13 +391,33 @@ const OnBoardingComponent = () => {
       case "welcome":
         return <WelcomeStepComponent />;
       case "repo":
-        return <RepoStepComponent setIsValid={setIsValid} />;
+        return (
+          <RepoStepComponent
+            values={stepData.repo}
+            onChange={(data) => updateStepData("repo", data)}
+          />
+        );
       case "token":
-        return <TokenStepComponent setIsValid={setIsValid} />;
+        return (
+          <TokenStepComponent
+            values={stepData.token}
+            onChange={(data) => updateStepData("token", data)}
+          />
+        );
       case "folders":
-        return <FoldersStepComponent />;
+        return (
+          <FoldersStepComponent
+            values={stepData.folders}
+            onChange={(data) => updateStepData("folders", data)}
+          />
+        );
       case "sync":
-        return <SyncSettingsStepComponent />;
+        return (
+          <SyncSettingsStepComponent
+            values={stepData.sync}
+            onChange={(data) => updateStepData("sync", data)}
+          />
+        );
       case "first_sync":
         return <FirstSyncStepComponent setIsValid={setIsValid} />;
       // case "done":
