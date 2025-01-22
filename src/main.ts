@@ -38,7 +38,7 @@ export default class GitHubSyncPlugin extends Plugin {
     );
     await this.syncManager.loadMetadata();
 
-    if (this.settings.uploadStrategy == "interval") {
+    if (this.settings.syncStrategy == "interval") {
       this.restartSyncInterval();
     }
 
@@ -178,7 +178,7 @@ export default class GitHubSyncPlugin extends Plugin {
   // when settings are changed
   startSyncInterval() {
     const intervalID = this.syncManager.startSyncInterval(
-      this.settings.uploadInterval,
+      this.settings.syncInterval,
     );
     this.registerInterval(intervalID);
   }
@@ -189,6 +189,6 @@ export default class GitHubSyncPlugin extends Plugin {
 
   restartSyncInterval() {
     this.syncManager.stopSyncInterval();
-    this.syncManager.startSyncInterval(this.settings.uploadInterval);
+    this.syncManager.startSyncInterval(this.settings.syncInterval);
   }
 }

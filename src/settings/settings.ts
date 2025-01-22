@@ -6,8 +6,8 @@ export interface GitHubSyncSettings {
   githubBranch: string;
   repoContentDir: string;
   localContentDir: string;
-  uploadStrategy: "manual" | "interval";
-  uploadInterval: number;
+  syncStrategy: "manual" | "interval";
+  syncInterval: number;
   syncOnStartup: boolean;
   conflictHandling: "ignore" | "ask" | "overwrite";
   showStatusBarItem: boolean;
@@ -22,8 +22,8 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   githubBranch: "main",
   repoContentDir: "",
   localContentDir: "",
-  uploadStrategy: "manual",
-  uploadInterval: 1,
+  syncStrategy: "manual",
+  syncInterval: 1,
   syncOnStartup: false,
   conflictHandling: "ask",
   showStatusBarItem: true,

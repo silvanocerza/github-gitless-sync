@@ -123,43 +123,43 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
 
     containerEl.createEl("h2", { text: "Sync" });
 
-    const uploadStrategies = {
+    const syncStrategies = {
       manual: "Manually",
       interval: "On Interval",
     };
     const uploadStrategySetting = new Setting(containerEl)
-      .setName("Upload strategy")
-      .setDesc("When to upload local files to remote repository");
+      .setName("Sync strategy")
+      .setDesc("How to sync files with remote repository");
 
     let syncInterval = "1";
-    if (this.plugin.settings.uploadInterval) {
-      syncInterval = this.plugin.settings.uploadInterval.toString();
+    if (this.plugin.settings.syncInterval) {
+      syncInterval = this.plugin.settings.syncInterval.toString();
     }
     const intervalSettings = new Setting(containerEl)
-      .setName("Upload interval")
-      .setDesc("Upload interval in minutes between automatic uploads")
+      .setName("Sync interval")
+      .setDesc("Interval in minutes between automatic syncs")
       .addText((text) =>
         text
           .setPlaceholder("Interval in minutes")
           .setValue(syncInterval)
           .onChange(async (value) => {
-            this.plugin.settings.uploadInterval = parseInt(value) || 1;
+            this.plugin.settings.syncInterval = parseInt(value) || 1;
             await this.plugin.saveSettings();
             // We need to restart the interval if the value is changed
             this.plugin.restartSyncInterval();
           }),
       );
     intervalSettings.setDisabled(
-      this.plugin.settings.uploadStrategy !== "interval",
+      this.plugin.settings.syncStrategy !== "interval",
     );
 
     uploadStrategySetting.addDropdown((dropdown) =>
       dropdown
-        .addOptions(uploadStrategies)
-        .setValue(this.plugin.settings.uploadStrategy)
-        .onChange(async (value: keyof typeof uploadStrategies) => {
+        .addOptions(syncStrategies)
+        .setValue(this.plugin.settings.syncStrategy)
+        .onChange(async (value: keyof typeof syncStrategies) => {
           intervalSettings.setDisabled(value !== "interval");
-          this.plugin.settings.uploadStrategy = value;
+          this.plugin.settings.syncStrategy = value;
           await this.plugin.saveSettings();
           if (value === "interval") {
             this.plugin.startSyncInterval();
