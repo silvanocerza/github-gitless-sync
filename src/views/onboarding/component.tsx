@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import SyncManager from "src/sync-manager";
+import { usePlugin } from "src/views/hooks";
+import { DEFAULT_SETTINGS } from "src/settings/settings";
 
 const STEPS = [
   "welcome",
@@ -6,22 +9,31 @@ const STEPS = [
   "token",
   "folders",
   "sync",
-  "interface",
   "first_sync",
-  "done",
 ] as const;
 
 type Step = (typeof STEPS)[number];
 
 type StepData = {
-  repo?: { owner: string; repo: string; branch: string };
-  token?: { token: string };
-  folders?: { repoFolder: string; vaultFolder: string };
-  sync?: {
+  repo: { owner: string; repo: string; branch: string };
+  token: { token: string };
+  folders: { repoFolder: string; vaultFolder: string };
+  sync: {
     mode: "manual" | "interval";
     syncOnStart: boolean;
     onConflict: "ignore" | "ask" | "overwrite";
   };
+};
+
+const DEFAULT_STEP_DATA: StepData = {
+  repo: { owner: "", repo: "", branch: "" },
+  token: { token: "" },
+  folders: { repoFolder: "", vaultFolder: "" },
+  sync: {
+    mode: "manual",
+    syncOnStart: false,
+    onConflict: "overwrite",
+  },
 };
 
 const WelcomeStepComponent = () => {
@@ -48,10 +60,10 @@ const WelcomeStepComponent = () => {
 };
 
 const RepoStepComponent = ({
-  values = { owner: "", repo: "", branch: "" },
+  values,
   onChange,
 }: {
-  values?: { owner: string; repo: string; branch: string };
+  values: { owner: string; repo: string; branch: string };
   onChange: (values: { owner: string; repo: string; branch: string }) => void;
 }) => {
   return (
@@ -117,10 +129,10 @@ const RepoStepComponent = ({
 };
 
 const TokenStepComponent = ({
-  values = { token: "" },
+  values,
   onChange,
 }: {
-  values?: { token: string };
+  values: { token: string };
   onChange: (values: { token: string }) => void;
 }) => {
   return (
@@ -174,10 +186,10 @@ const TokenStepComponent = ({
 };
 
 const FoldersStepComponent = ({
-  values = { repoFolder: "", vaultFolder: "" },
+  values,
   onChange,
 }: {
-  values?: { repoFolder: string; vaultFolder: string };
+  values: { repoFolder: string; vaultFolder: string };
   onChange: (values: { repoFolder: string; vaultFolder: string }) => void;
 }) => {
   return (
@@ -226,10 +238,10 @@ const FoldersStepComponent = ({
 };
 
 const SyncSettingsStepComponent = ({
-  values = { mode: "manual", syncOnStart: false, onConflict: "overwrite" },
+  values,
   onChange,
 }: {
-  values?: {
+  values: {
     mode: "manual" | "interval";
     syncOnStart: boolean;
     onConflict: "ignore" | "ask" | "overwrite";
@@ -301,11 +313,71 @@ const SyncSettingsStepComponent = ({
 };
 
 const FirstSyncStepComponent = ({
-  setIsValid,
+  stepData,
+  onClose,
 }: {
-  setIsValid: (valid: boolean) => void;
+  stepData: StepData;
+  onClose: () => Promise<void>;
 }) => {
-  setIsValid(true);
+  const [syncing, setSyncing] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const plugin = usePlugin();
+  if (!plugin) {
+    // Unlikely to happen, makes TS happy though
+    throw new Error("Plugin is not initialized");
+  }
+  useEffect(() => {
+    (async () => {
+      const settings = {
+        ...DEFAULT_SETTINGS,
+        githubToken: stepData.token.token,
+        githubOwner: stepData.repo.owner,
+        githubRepo: stepData.repo.repo,
+        githubBranch: stepData.repo.branch,
+        repoContentDir: stepData.folders.repoFolder,
+        localContentDir: stepData.folders.vaultFolder,
+        uploadStrategy: stepData.sync.mode,
+        syncOnStartup: stepData.sync.syncOnStart,
+        conflictHandling: stepData.sync.onConflict,
+      };
+      // We don't want to save the settings yet, so we create a new sync manager
+      // used only for the first sync.
+      // After that's sucessful we'll save the settings.
+      const syncManager = new SyncManager(
+        plugin.app.vault,
+        settings,
+        // There can't be any conflicts at this point so we don't need to handle them
+        async (_) => {
+          return [];
+        },
+      );
+      try {
+        await syncManager.firstSync();
+      } catch (e) {
+        setError(e.message);
+        setSuccess(false);
+        setSyncing(false);
+        return;
+      }
+      plugin.settings = settings;
+      await plugin.saveSettings();
+      setSyncing(false);
+      setSuccess(true);
+    })();
+  }, [stepData]);
+
+  const loadingBarStyle = () => {
+    if (error) {
+      return { width: 0 };
+    } else if (success) {
+      return { width: "100%" };
+    } else {
+      return {};
+    }
+  };
+
   return (
     <div
       style={{
@@ -317,32 +389,52 @@ const FirstSyncStepComponent = ({
       }}
     >
       <p style={{ textAlign: "center" }}>
-        Now we can sync your vault with your repository. This might take a few
-        minutes depending on the size of your vault.
+        Now we can try and sync your vault with your repository. This might take
+        a few minutes depending on the number of files.
       </p>
       <div className="progress-bar">
         <div className="progress-bar-message u-center-text">
-          Syncing vault...
+          {syncing ? "Syncing..." : null}
+          {error ? "Syncing failed" : null}
+          {success ? "Syncing complete" : null}
         </div>
         <div className="progress-bar-indicator" style={{ width: "100%" }}>
           <div className="progress-bar-line"></div>
-          <div className="progress-bar-subline mod-increase"></div>
-          <div className="progress-bar-subline mod-decrease"></div>
+          <div
+            className={`progress-bar-subline ${syncing ? "mod-increase" : ""}`}
+            style={loadingBarStyle()}
+          ></div>
+          <div
+            className={`progress-bar-subline ${syncing ? "mod-decrease" : ""}`}
+            style={loadingBarStyle()}
+          ></div>
         </div>
         <div className="progress-bar-context">
-          <div>Show failure or success message here</div>
+          {error ? <div>{error}</div> : null}
+          {success ? <div>Everything is set up and ready to go.</div> : null}
         </div>
       </div>
+      {success ? (
+        <button
+          style={{
+            color: "var(--text-on-accent)",
+            backgroundColor: "var(--interactive-accent)",
+          }}
+          onClick={async () => await onClose()}
+        >
+          Close
+        </button>
+      ) : null}
     </div>
   );
 };
 
-const OnBoardingComponent = () => {
+const OnBoardingComponent = ({ onClose }: { onClose: () => Promise<void> }) => {
   // It starts as true because the first step is just a welcome message
   // so the button is already enabled.
   const [isValid, setIsValid] = useState<boolean>(true);
   const [step, setStep] = useState<Step>("welcome");
-  const [stepData, setStepData] = useState<StepData>({});
+  const [stepData, setStepData] = useState<StepData>(DEFAULT_STEP_DATA);
 
   const updateStepData = (step: Step, data: StepData[keyof StepData]) => {
     setStepData((stepData) => {
@@ -419,9 +511,7 @@ const OnBoardingComponent = () => {
           />
         );
       case "first_sync":
-        return <FirstSyncStepComponent setIsValid={setIsValid} />;
-      // case "done":
-      //   return <DoneStepComponent />;
+        return <FirstSyncStepComponent stepData={stepData} onClose={onClose} />;
     }
   };
   return (
