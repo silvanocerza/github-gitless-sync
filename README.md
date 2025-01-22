@@ -26,7 +26,11 @@ The plugin is still in beta so it's still not available in the community plugins
 
 For the time being you can install it with BRAT. If you never used BRAT see [the official quick start guide](https://tfthacker.com/brat-quick-guide).
 
-If you already have BRAT installed click [here](obsidian://brat?plugin=https://github.com/silvanocerza/obsidian-github-sync) to install GitHub Sync.
+If you already have BRAT installed to install GitHub Sync copy the following link and paste it in the browser address bar.
+
+```
+obsidian://brat?plugin=https://github.com/silvanocerza/obsidian-github-sync
+```
 
 ## Usage
 
