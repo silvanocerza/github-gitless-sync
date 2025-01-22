@@ -3,6 +3,7 @@ import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
 import GitHubSyncSettingsTab from "./settings/tab";
 import SyncManager from "./sync-manager";
 import { FileMetadata } from "./metadata-store";
+import { OnboardingDialog } from "./views/onboarding/view";
 
 export default class GitHubSyncPlugin extends Plugin {
   settings: GitHubSyncSettings;
@@ -16,8 +17,13 @@ export default class GitHubSyncPlugin extends Plugin {
   vaultModifyListener: EventRef | null = null;
 
   async onUserEnable() {
-    // TODO: Add onboarding
-    console.log("Enabled!");
+    if (this.app.isMobile) {
+      // TODO: Implement onboarding for mobile
+      return;
+    }
+    if (this.settings.firstStart) {
+      new OnboardingDialog(this).open();
+    }
   }
 
   async onload() {
@@ -35,14 +41,6 @@ export default class GitHubSyncPlugin extends Plugin {
     if (this.settings.uploadStrategy == "interval") {
       this.restartSyncInterval();
     }
-
-    // const res = await this.client.getRepoContent(
-    // this.settings.githubOwner,
-    // this.settings.githubRepo,
-    // this.settings.repoContentDir,
-    // this.settings.githubBranch,
-    // );
-    // console.log(res);
 
     this.app.workspace.onLayoutReady(async () => {
       // Create the events handling only after tha layout is ready to avoid
@@ -75,9 +73,7 @@ export default class GitHubSyncPlugin extends Plugin {
   }
 
   async onunload() {
-    // TODO: Stop all the things here
     this.stopSyncInterval();
-    console.log("GitHubSyncPlugin unloaded");
   }
 
   showStatusBarItem() {
