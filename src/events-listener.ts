@@ -1,5 +1,6 @@
-import { Vault, TAbstractFile, TFolder, TFile } from "obsidian";
+import { Vault, TAbstractFile, TFolder } from "obsidian";
 import MetadataStore from "./metadata-store";
+import { GitHubSyncSettings } from "./settings/settings";
 
 /**
  * Tracks changes to local sync directory and updates files metadata.
@@ -8,8 +9,7 @@ export default class EventsListener {
   constructor(
     private vault: Vault,
     private metadataStore: MetadataStore,
-    private localContentDir: string,
-    private repoContentDir: string,
+    private settings: GitHubSyncSettings,
   ) {}
 
   start() {
@@ -39,8 +39,11 @@ export default class EventsListener {
     }
 
     let remotePath: string;
-    if (file.path.startsWith(this.localContentDir)) {
-      remotePath = file.path.replace(this.localContentDir, this.repoContentDir);
+    if (file.path.startsWith(this.settings.localContentDir)) {
+      remotePath = file.path.replace(
+        this.settings.localContentDir,
+        this.settings.repoContentDir,
+      );
     } else if (
       file.path.startsWith(`${this.vault.configDir}/github-sync-metadata.json`)
     ) {
@@ -129,8 +132,9 @@ export default class EventsListener {
 
   private isSyncable(filePath: string) {
     return (
-      filePath.startsWith(this.localContentDir) ||
-      filePath.startsWith(`${this.vault.configDir}/github-sync-metadata.json`)
+      filePath.startsWith(this.settings.localContentDir) ||
+      filePath === `${this.vault.configDir}/github-sync-metadata.json` ||
+      (this.settings.syncConfigDir && filePath.startsWith(this.vault.configDir))
     );
   }
 }

@@ -39,8 +39,7 @@ export default class SyncManager {
     this.eventsListener = new EventsListener(
       this.vault,
       this.metadataStore,
-      this.settings.localContentDir,
-      this.settings.repoContentDir,
+      this.settings,
     );
   }
 
@@ -658,6 +657,71 @@ export default class SyncManager {
       };
       this.metadataStore.save();
     }
+  }
+
+  /**
+   * Add all the files in the config dir in the metadata store.
+   * This is mainly useful when the user changes the sync config settings
+   * as we need to add those files to the metadata store or they would never be synced.
+   */
+  async addConfigDirToMetadata() {
+    // Get all the files in the config dir
+    let files = [];
+    let folders = [this.vault.configDir];
+    while (folders.length > 0) {
+      const folder = folders.pop();
+      if (folder === undefined) {
+        continue;
+      }
+      const res = await this.vault.adapter.list(folder);
+      files.push(...res.files);
+      folders.push(...res.folders);
+    }
+    // Add them to the metadata store
+    files.forEach((filePath: string) => {
+      this.metadataStore.data.files[filePath] = {
+        localPath: filePath,
+        // Remote path is the same for config dir files
+        remotePath: filePath,
+        sha: null,
+        dirty: false,
+        justDownloaded: false,
+        lastModified: Date.now(),
+      };
+    });
+    this.metadataStore.save();
+  }
+
+  /**
+   * Remove all the files in the config dir from the metadata store.
+   * The metadata file is not removed as it must always be present.
+   * This is mainly useful when the user changes the sync config settings
+   * as we need to remove those files to the metadata store or they would
+   * keep being synced.
+   */
+  async removeConfigDirFromMetadata() {
+    // Get all the files in the config dir
+    let files = [];
+    let folders = [this.vault.configDir];
+    while (folders.length > 0) {
+      const folder = folders.pop();
+      if (folder === undefined) {
+        continue;
+      }
+      const res = await this.vault.adapter.list(folder);
+      files.push(...res.files);
+      folders.push(...res.folders);
+    }
+
+    // Remove all them from the metadata store
+    files.forEach((filePath: string) => {
+      if (filePath === `${this.vault.configDir}/github-sync-metadata.json`) {
+        // We don't want to remove the metadata file even if it's in the config dir
+        return;
+      }
+      delete this.metadataStore.data.files[filePath];
+    });
+    this.metadataStore.save();
   }
 
   getFileMetadata(filePath: string): FileMetadata {

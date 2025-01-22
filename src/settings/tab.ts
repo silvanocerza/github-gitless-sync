@@ -189,6 +189,11 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           .setValue(this.plugin.settings.syncConfigDir)
           .onChange(async (value) => {
             this.plugin.settings.syncConfigDir = value;
+            if (value) {
+              await this.plugin.syncManager.addConfigDirToMetadata();
+            } else {
+              await this.plugin.syncManager.removeConfigDirFromMetadata();
+            }
             await this.plugin.saveSettings();
           });
       });
