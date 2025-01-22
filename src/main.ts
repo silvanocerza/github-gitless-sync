@@ -1,4 +1,4 @@
-import { EventRef, Plugin, FileView } from "obsidian";
+import { EventRef, Plugin, Platform } from "obsidian";
 import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
 import GitHubSyncSettingsTab from "./settings/tab";
 import SyncManager from "./sync-manager";
@@ -17,7 +17,7 @@ export default class GitHubSyncPlugin extends Plugin {
   vaultModifyListener: EventRef | null = null;
 
   async onUserEnable() {
-    if (this.app.isMobile) {
+    if (Platform.isMobile) {
       // TODO: Implement onboarding for mobile
       return;
     }
