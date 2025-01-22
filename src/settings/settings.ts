@@ -1,4 +1,5 @@
 export interface GitHubSyncSettings {
+  firstStart: boolean;
   githubToken: string;
   githubOwner: string;
   githubRepo: string;
@@ -14,6 +15,7 @@ export interface GitHubSyncSettings {
 }
 
 export const DEFAULT_SETTINGS: GitHubSyncSettings = {
+  firstStart: true,
   githubToken: "",
   githubOwner: "",
   githubRepo: "",
