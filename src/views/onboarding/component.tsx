@@ -353,6 +353,7 @@ const FirstSyncStepComponent = ({
           return [];
         },
       );
+      await syncManager.loadMetadata();
       try {
         await syncManager.firstSync();
       } catch (e) {

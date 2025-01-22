@@ -9,6 +9,7 @@ export interface GitHubSyncSettings {
   syncStrategy: "manual" | "interval";
   syncInterval: number;
   syncOnStartup: boolean;
+  syncConfigDir: boolean;
   conflictHandling: "ignore" | "ask" | "overwrite";
   showStatusBarItem: boolean;
   showSyncRibbonButton: boolean;
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   syncStrategy: "manual",
   syncInterval: 1,
   syncOnStartup: false,
+  syncConfigDir: false,
   conflictHandling: "ask",
   showStatusBarItem: true,
   showSyncRibbonButton: true,

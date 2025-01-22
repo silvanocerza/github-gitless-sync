@@ -52,9 +52,9 @@ export default class SyncManager {
     [key: string]: GetTreeResponseItem;
   }): boolean {
     return (
-      Object.keys(files).filter((filePath: string) => {
-        filePath.startsWith(this.settings.repoContentDir);
-      }).length === 0
+      Object.keys(files).filter((filePath: string) =>
+        filePath.startsWith(this.settings.repoContentDir),
+      ).length === 0
     );
   }
 
@@ -72,10 +72,10 @@ export default class SyncManager {
       );
       // There are files or folders in the local content dir
       return (
-        files.length > 0 ||
+        files.length === 0 ||
         // We filter out the config dir in case the user wants to sync the whole
         // vault. The config dir is always present so it's fine if we find it.
-        folders.filter((f) => f !== this.vault.configDir).length > 0
+        folders.filter((f) => f !== this.vault.configDir).length === 0
       );
     }
     return true;
@@ -120,15 +120,21 @@ export default class SyncManager {
     files: { [key: string]: GetTreeResponseItem },
     treeSha: string,
   ) {
-    // There's no remote manifest and there are files in the repo,
-    // though there are no files locally either, so we can just download everything
-    // and sync the remote manifest.
     await Promise.all(
       Object.keys(files)
         .filter((filePath: string) => {
           if (filePath.startsWith(this.settings.repoContentDir)) {
             return true;
-          } else if (filePath.startsWith(this.vault.configDir)) {
+          } else if (
+            filePath === `${this.vault.configDir}/github-sync-metadata.json`
+          ) {
+            // The metadata file must always be synced
+            return true;
+          } else if (
+            this.settings.syncConfigDir &&
+            filePath.startsWith(this.vault.configDir)
+          ) {
+            // Include files in the config dir only if the user has enabled it
             return true;
           }
           return false;
@@ -492,6 +498,18 @@ export default class SyncManager {
       }
     });
 
+    if (!this.settings.syncConfigDir) {
+      // Remove all actions that involve the config directory if the user doesn't want to sync it.
+      // The manifest file is always synced.
+      return actions.filter((action: SyncAction) => {
+        return (
+          !action.filePath.startsWith(this.vault.configDir) ||
+          action.filePath ===
+            `${this.vault.configDir}/github-sync-metadata.json`
+        );
+      });
+    }
+
     return actions;
   }
 
@@ -580,13 +598,15 @@ export default class SyncManager {
   async loadMetadata() {
     await this.metadataStore.load();
     if (Object.keys(this.metadataStore.data.files).length === 0) {
-      // Must be the first time we run, initialize the metadata store
-      // with the files from the config directory
       let files = [];
-      let folders = [this.vault.configDir];
+      let folders = [this.settings.localContentDir];
       while (folders.length > 0) {
         const folder = folders.pop();
-        if (!folder) {
+        if (folder === undefined) {
+          continue;
+        }
+        if (!this.settings.syncConfigDir && folder === this.vault.configDir) {
+          // Skip the config dir if the user doesn't want to sync it
           continue;
         }
         const res = await this.vault.adapter.list(folder);
@@ -598,23 +618,34 @@ export default class SyncManager {
           // Obsidian recommends not syncing the workspace file
           return;
         }
-        if (filePath.startsWith(`${this.vault.configDir}/plugins`)) {
-          // Let's not sync plugins for the time being
-          return;
+
+        // We change the remote path only if the file is not in the config dir
+        // as that directory is always at the root of the repo.
+        // If it's synced obviously.
+        let remotePath = filePath;
+        if (!filePath.startsWith(this.vault.configDir)) {
+          if (this.settings.localContentDir === "") {
+            remotePath = `${this.settings.repoContentDir}/${filePath}`;
+          } else {
+            remotePath = filePath.replace(
+              this.settings.localContentDir,
+              this.settings.repoContentDir,
+            );
+          }
         }
+
         this.metadataStore.data.files[filePath] = {
           localPath: filePath,
-          // The config dir is always stored in the repo root so we use
-          // the same path for remote
-          remotePath: filePath,
+          remotePath: remotePath,
           sha: null,
           dirty: false,
           justDownloaded: false,
           lastModified: Date.now(),
         };
       });
-      // Add itself, if we're here the manifest file doesn't exist
-      // so it can't add itself to the list of files
+
+      // Must be the first time we run, initialize the metadata store
+      // with itself and all files in the local content dir.
       this.metadataStore.data.files[
         `${this.vault.configDir}/github-sync-metadata.json`
       ] = {

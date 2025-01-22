@@ -181,6 +181,18 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName("Sync configs")
+      .setDesc("Sync Vault config folder with remote repository")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.syncConfigDir)
+          .onChange(async (value) => {
+            this.plugin.settings.syncConfigDir = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
     const conflictHandlingOptions = {
       ignore: "Ignore remote file",
       ask: "Ask",
