@@ -22,7 +22,11 @@ export class OnboardingDialog extends Modal {
         <OnboardingDialogComponent
           onClose={async () => {
             this.plugin.settings.firstStart = false;
+            // Save the settings only after a successful first sync
             await this.plugin.saveSettings();
+            // Reload metadata after sync to be sure that the main sync manager
+            // uses the latest version
+            await this.plugin.syncManager.loadMetadata();
             this.close();
           }}
         />
