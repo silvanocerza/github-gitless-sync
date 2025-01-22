@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   syncStrategy: "manual",
   syncInterval: 1,
   syncOnStartup: false,
-  syncConfigDir: false,
+  syncConfigDir: true,
   conflictHandling: "ask",
   showStatusBarItem: true,
   showSyncRibbonButton: true,
