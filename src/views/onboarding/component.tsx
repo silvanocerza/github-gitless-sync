@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import SyncManager from "src/sync-manager";
 import { usePlugin } from "src/views/hooks";
-import { DEFAULT_SETTINGS } from "src/settings/settings";
+import { DEFAULT_SETTINGS, GitHubSyncSettings } from "src/settings/settings";
 
 const STEPS = [
   "welcome",
@@ -21,6 +21,7 @@ type StepData = {
   sync: {
     mode: "manual" | "interval";
     syncOnStart: boolean;
+    syncConfigDir: boolean;
     onConflict: "ignore" | "ask" | "overwrite";
   };
 };
@@ -32,6 +33,7 @@ const DEFAULT_STEP_DATA: StepData = {
   sync: {
     mode: "manual",
     syncOnStart: false,
+    syncConfigDir: true,
     onConflict: "overwrite",
   },
 };
@@ -209,6 +211,10 @@ const FoldersStepComponent = ({
       <p style={{ textAlign: "center" }}>
         Leave blank to sync the whole repository and the whole vault.
       </p>
+      <p style={{ textAlign: "center" }}>
+        If you sync only a part of this vault remember you must always reuse the
+        same local path if you want to sync other vaults too.
+      </p>
       <div
         style={{
           display: "flex",
@@ -244,11 +250,13 @@ const SyncSettingsStepComponent = ({
   values: {
     mode: "manual" | "interval";
     syncOnStart: boolean;
+    syncConfigDir: boolean;
     onConflict: "ignore" | "ask" | "overwrite";
   };
   onChange: (values: {
     mode: "manual" | "interval";
     syncOnStart: boolean;
+    syncConfigDir: boolean;
     onConflict: "ignore" | "ask" | "overwrite";
   }) => void;
 }) => {
@@ -287,6 +295,18 @@ const SyncSettingsStepComponent = ({
         }
       >
         <input type="checkbox" readOnly={true} checked={values.syncOnStart} />
+      </div>
+      <p>
+        If you want different configs for different vaults you can disable
+        config syncing.
+      </p>
+      <div
+        className={`checkbox-container ${values.syncConfigDir ? "is-enabled" : ""}`}
+        onClick={() =>
+          onChange({ ...values, syncConfigDir: !values.syncConfigDir })
+        }
+      >
+        <input type="checkbox" readOnly={true} checked={values.syncConfigDir} />
       </div>
       <p>In case of conflicts you can choose how to handle them.</p>
       <p>
@@ -330,7 +350,7 @@ const FirstSyncStepComponent = ({
   }
   useEffect(() => {
     (async () => {
-      const settings = {
+      const settings: GitHubSyncSettings = {
         ...DEFAULT_SETTINGS,
         githubToken: stepData.token.token,
         githubOwner: stepData.repo.owner,
@@ -338,8 +358,9 @@ const FirstSyncStepComponent = ({
         githubBranch: stepData.repo.branch,
         repoContentDir: stepData.folders.repoFolder,
         localContentDir: stepData.folders.vaultFolder,
-        uploadStrategy: stepData.sync.mode,
+        syncStrategy: stepData.sync.mode,
         syncOnStartup: stepData.sync.syncOnStart,
+        syncConfigDir: stepData.sync.syncConfigDir,
         conflictHandling: stepData.sync.onConflict,
       };
       // We don't want to save the settings yet, so we create a new sync manager
