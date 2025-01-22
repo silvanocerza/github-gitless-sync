@@ -44,89 +44,186 @@ export default class SyncManager {
     );
   }
 
+  /**
+   * Returns true if the remote content dir is empty.
+   * @param files All files in the remote repository
+   */
+  private remoteContentDirIsEmpty(files: {
+    [key: string]: GetTreeResponseItem;
+  }): boolean {
+    return (
+      Object.keys(files).filter((filePath: string) => {
+        filePath.startsWith(this.settings.repoContentDir);
+      }).length === 0
+    );
+  }
+
+  /**
+   * Returns true if the local content dir is empty.
+   * If the local content dir is the vault root the config dir is ignored.
+   */
+  private async localContentDirIsEmpty(): Promise<boolean> {
+    const localContentDirExists = await this.vault.adapter.exists(
+      this.settings.localContentDir,
+    );
+    if (localContentDirExists) {
+      const { files, folders } = await this.vault.adapter.list(
+        this.settings.localContentDir,
+      );
+      // There are files or folders in the local content dir
+      return (
+        files.length > 0 ||
+        // We filter out the config dir in case the user wants to sync the whole
+        // vault. The config dir is always present so it's fine if we find it.
+        folders.filter((f) => f !== this.vault.configDir).length > 0
+      );
+    }
+    return true;
+  }
+
+  /**
+   * Handles first sync with remote and local.
+   * This fails neither remote nor local folders are empty.
+   */
+  async firstSync() {
+    const { files, sha: treeSha } = await this.client.getRepoContent();
+
+    const remoteContentDirIsEmpty = this.remoteContentDirIsEmpty(files);
+    const localContentDirIsEmpty = await this.localContentDirIsEmpty();
+
+    if (!remoteContentDirIsEmpty && !localContentDirIsEmpty) {
+      // Both have files, we can't sync, show error
+      throw new Error("Both remote and local have files, can't sync");
+    } else if (remoteContentDirIsEmpty) {
+      // Remote has no files and no manifest, let's just upload whatever we have locally.
+      // This is fine even if the local content dir is empty.
+      // The most important thing at this point is that the remote manifest is created.
+      await this.firstSyncFromLocal(files, treeSha);
+    } else {
+      // Local has no files and there's no manifest in the remote repo.
+      // Let's download whatever we have in the remote content dir.
+      // This is fine even if the remote content dir is empty.
+      // In this case too the important step is that the remote manifest is created.
+      await this.firstSyncFromRemote(files, treeSha);
+    }
+  }
+
+  /**
+   * Handles first sync with the remote repository.
+   * This must be called in case there are no files in the local content dir while
+   * remote has files in the repo content dir but no manifest file.
+   *
+   * @param files All files in the remote repository, including those not in its content dir.
+   * @param treeSha The SHA of the tree in the remote repository.
+   */
+  async firstSyncFromRemote(
+    files: { [key: string]: GetTreeResponseItem },
+    treeSha: string,
+  ) {
+    // There's no remote manifest and there are files in the repo,
+    // though there are no files locally either, so we can just download everything
+    // and sync the remote manifest.
+    await Promise.all(
+      Object.keys(files)
+        .filter((filePath: string) => {
+          if (filePath.startsWith(this.settings.repoContentDir)) {
+            return true;
+          } else if (filePath.startsWith(this.vault.configDir)) {
+            return true;
+          }
+          return false;
+        })
+        .map(async (filePath: string) => {
+          await this.downloadFile(files[filePath], Date.now());
+        }),
+    );
+    const newTreeFiles = Object.keys(files)
+      .map((filePath: string) => ({
+        path: files[filePath].path,
+        mode: files[filePath].mode,
+        type: files[filePath].type,
+        sha: files[filePath].sha,
+      }))
+      .reduce(
+        (
+          acc: { [key: string]: NewTreeRequestItem },
+          item: NewTreeRequestItem,
+        ) => ({ ...acc, [item.path]: item }),
+        {},
+      );
+    // Add files that are in the manifest but not in the tree.
+    await Promise.all(
+      Object.keys(this.metadataStore.data.files).map(
+        async (filePath: string) => {
+          const normalizedPath = normalizePath(filePath);
+          const content = await this.vault.adapter.read(normalizedPath);
+          const { remotePath } = this.metadataStore.data.files[filePath];
+          newTreeFiles[remotePath] = {
+            path: remotePath,
+            mode: "100644",
+            type: "blob",
+            content: content,
+          };
+        },
+      ),
+    );
+    await this.commitSync(newTreeFiles, treeSha);
+  }
+
+  /**
+   * Handles first sync with the remote repository.
+   * This must be called in case there are no files in the remote content dir and no manifest while
+   * local content dir has files and a manifest.
+   *
+   * @param files All files in the remote repository, including those not in its content dir.
+   * @param treeSha The SHA of the tree in the remote repository.
+   */
+  async firstSyncFromLocal(
+    files: { [key: string]: GetTreeResponseItem },
+    treeSha: string,
+  ) {
+    const newTreeFiles = Object.keys(files)
+      .map((filePath: string) => ({
+        path: files[filePath].path,
+        mode: files[filePath].mode,
+        type: files[filePath].type,
+        sha: files[filePath].sha,
+      }))
+      .reduce(
+        (
+          acc: { [key: string]: NewTreeRequestItem },
+          item: NewTreeRequestItem,
+        ) => ({ ...acc, [item.path]: item }),
+        {},
+      );
+    await Promise.all(
+      Object.keys(this.metadataStore.data.files).map(
+        async (filePath: string) => {
+          const normalizedPath = normalizePath(filePath);
+          const content = await this.vault.adapter.read(normalizedPath);
+          const { remotePath } = this.metadataStore.data.files[filePath];
+          newTreeFiles[remotePath] = {
+            path: remotePath,
+            mode: "100644",
+            type: "blob",
+            content: content,
+          };
+        },
+      ),
+    );
+    await this.commitSync(newTreeFiles, treeSha);
+  }
+
+  /**
+   * Syncs local and remote folders.
+   * @returns
+   */
   async sync() {
-    // TODO: Handle cases
-    // 1. Remote manifest not found
-    // 2. Local manifest not found
-    // 3. Remote repo and local vault folder have both some files
-    //
-    // These could very well be first sync, maybe a separate function might be best.
-    // Might be something for onboarding.
     const { files, sha: treeSha } = await this.client.getRepoContent();
     const manifest = files[`${this.vault.configDir}/github-sync-metadata.json`];
 
-    if (manifest === undefined && Object.keys(files).length > 0) {
-      const localContentDirExists = await this.vault.adapter.exists(
-        this.settings.localContentDir,
-      );
-      if (localContentDirExists) {
-        const existing = await this.vault.adapter.list(
-          this.settings.localContentDir,
-        );
-        if (
-          (this.settings.localContentDir === "" &&
-            existing.folders.length > 1) ||
-          existing.files.length > 0
-        ) {
-          // There are local and remote files but remote doesn't have a manifest
-          // we don't know what to do in this case
-          throw new Error("Can't sync");
-        } else if (existing.folders.length > 0 || existing.files.length > 0) {
-          // There are local and remote files but remote doesn't have a manifest
-          // we don't know what to do in this case
-          throw new Error("Can't sync");
-        }
-      }
-
-      // There's no remote manifest and there are files in the repo,
-      // though there are no files locally either, so we can just download everything
-      // and sync the remote manifest.
-      await Promise.all(
-        Object.keys(files)
-          .filter((filePath: string) => {
-            if (filePath.startsWith(this.settings.repoContentDir)) {
-              return true;
-            } else if (filePath.startsWith(this.vault.configDir)) {
-              return true;
-            }
-            return false;
-          })
-          .map(async (filePath: string) => {
-            await this.downloadFile(files[filePath], Date.now());
-          }),
-      );
-      const newTreeFiles = Object.keys(files)
-        .map((filePath: string) => ({
-          path: files[filePath].path,
-          mode: files[filePath].mode,
-          type: files[filePath].type,
-          sha: files[filePath].sha,
-        }))
-        .reduce(
-          (
-            acc: { [key: string]: NewTreeRequestItem },
-            item: NewTreeRequestItem,
-          ) => ({ ...acc, [item.path]: item }),
-          {},
-        );
-      // Add files that are in the manifest but not in the tree.
-      await Promise.all(
-        Object.keys(this.metadataStore.data.files).map(
-          async (filePath: string) => {
-            const normalizedPath = normalizePath(filePath);
-            const content = await this.vault.adapter.read(normalizedPath);
-            const { remotePath } = this.metadataStore.data.files[filePath];
-            newTreeFiles[remotePath] = {
-              path: remotePath,
-              mode: "100644",
-              type: "blob",
-              content: content,
-            };
-          },
-        ),
-      );
-      await this.commitSync(newTreeFiles, treeSha);
-      return;
+    if (manifest === undefined) {
+      throw new Error("Remote manifest is missing");
     }
 
     const blob = await this.client.getBlob(manifest.url);
@@ -170,11 +267,8 @@ export default class SyncManager {
     ];
 
     if (actions.length === 0) {
-      console.log("Nothing to sync");
+      // Nothing to sync
       return;
-    } else {
-      console.log("Actions:");
-      console.log(actions);
     }
 
     const newTreeFiles: { [key: string]: NewTreeRequestItem } = Object.keys(
@@ -250,6 +344,12 @@ export default class SyncManager {
     await this.commitSync(newTreeFiles, treeSha);
   }
 
+  /**
+   * Finds conflicts between local and remote files.
+   * @param remoteFiles All files in the remote content dir
+   * @param localFiles All files in the local content dir
+   * @returns List of objects with both remote and local conflicting files metadata
+   */
   findConflicts(
     remoteFiles: { [key: string]: FileMetadata },
     localFiles: { [key: string]: FileMetadata },
@@ -289,6 +389,14 @@ export default class SyncManager {
       );
   }
 
+  /**
+   * Determines which sync action to take for each file.
+   *
+   * @param remoteFiles All files in the remote content dir
+   * @param localFiles All files in the local content dir
+   *
+   * @returns List of SyncActions
+   */
   determineSyncActions(
     remoteFiles: { [key: string]: FileMetadata },
     localFiles: { [key: string]: FileMetadata },
@@ -343,16 +451,8 @@ export default class SyncManager {
       }
 
       if (remoteFile.lastModified > localFile.lastModified) {
-        console.log("Downloading");
-        console.log(filePath);
-        console.log(`localFile.lastModified: ${localFile.lastModified}`);
-        console.log(`remoteFile.lastModified: ${remoteFile.lastModified}`);
         actions.push({ type: "download", filePath: filePath });
       } else if (localFile.lastModified > remoteFile.lastModified) {
-        console.log("Uploading");
-        console.log(filePath);
-        console.log(`localFile.lastModified: ${localFile.lastModified}`);
-        console.log(`remoteFile.lastModified: ${remoteFile.lastModified}`);
         actions.push({ type: "upload", filePath: filePath });
       }
     });
@@ -395,6 +495,12 @@ export default class SyncManager {
     return actions;
   }
 
+  /**
+   * Creates a new sync commit in the remote repository.
+   *
+   * @param treeFiles Updated list of files in the remote tree
+   * @param baseTreeSha sha of the tree to use as base for the new tree
+   */
   async commitSync(
     treeFiles: { [key: string]: NewTreeRequestItem },
     baseTreeSha: string,
@@ -420,6 +526,7 @@ export default class SyncManager {
     const branchHeadSha = await this.client.getBranchHeadSha();
 
     const commitSha = await this.client.createCommit(
+      // TODO: Make this configurable or find a nicer commit message
       "Sync",
       newTreeSha,
       branchHeadSha,
