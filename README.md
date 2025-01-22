@@ -43,6 +43,7 @@ If you already have files in your vault I strongly recommend you to create a new
 
 A GitHub Fine-grained token is required to sync with your repository. You can create one by clicking [here](https://github.com/settings/personal-access-tokens/new).
 The token must have the `Contents` permission set to `Read and write` like in the screenshow below.
+
 ![GitHub Fine-grained token](./assets/token_permissions.png)
 
 I also suggest creating the token with access only to your sync repo.
@@ -51,6 +52,7 @@ I also suggest creating the token with access only to your sync repo.
 
 You can always sync manually by clicking the sync button in the side ribbon.
 This will always work even if sync on interval is enabled.
+
 ![Sync button](./assets/sync_button.png)
 
 If you don't want to see the button you can hide it, just check the plugin settings.
