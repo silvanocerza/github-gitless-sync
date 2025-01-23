@@ -38,23 +38,8 @@ export default class EventsListener {
       return;
     }
 
-    let remotePath: string;
-    if (file.path.startsWith(this.settings.localContentDir)) {
-      remotePath = file.path.replace(
-        this.settings.localContentDir,
-        this.settings.repoContentDir,
-      );
-    } else if (
-      file.path.startsWith(`${this.vault.configDir}/github-sync-metadata.json`)
-    ) {
-      remotePath = file.path;
-    } else {
-      throw new Error("Unexpected file path");
-    }
-
     this.metadataStore.data.files[file.path] = {
-      localPath: file.path,
-      remotePath: remotePath!,
+      path: file.path,
       sha: null,
       dirty: true,
       // This file has been created by the user
@@ -132,9 +117,12 @@ export default class EventsListener {
 
   private isSyncable(filePath: string) {
     return (
-      filePath.startsWith(this.settings.localContentDir) ||
       filePath === `${this.vault.configDir}/github-sync-metadata.json` ||
-      (this.settings.syncConfigDir && filePath.startsWith(this.vault.configDir))
+      (this.settings.syncConfigDir &&
+        filePath.startsWith(this.vault.configDir)) ||
+      // Obsidian recommends not syncing the workspace files
+      filePath === `${this.vault.configDir}/workspace.json` ||
+      filePath === `${this.vault.configDir}/workspace-mobile.json`
     );
   }
 }

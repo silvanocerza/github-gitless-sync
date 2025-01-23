@@ -6,9 +6,7 @@ import { Vault, normalizePath } from "obsidian";
  */
 export interface FileMetadata {
   // Local path to the file
-  localPath: string;
-  // Path to the file in the remote repository.
-  remotePath: string;
+  path: string;
   // SHA of the file in the remote repository.
   // This is necessary to update the file remotely.
   // If this is null the file has not yet been pushed to the remote repository.

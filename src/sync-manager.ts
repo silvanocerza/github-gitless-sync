@@ -34,8 +34,6 @@ export default class SyncManager {
       this.settings.githubOwner,
       this.settings.githubRepo,
       this.settings.githubBranch,
-      this.settings.repoContentDir,
-      this.vault.configDir,
     );
     this.eventsListener = new EventsListener(
       this.vault,
@@ -45,45 +43,23 @@ export default class SyncManager {
   }
 
   /**
-   * Returns true if the remote content dir is empty.
-   * @param files All files in the remote repository
+   * Returns true if the local vault root is empty.
    */
-  private remoteContentDirIsEmpty(files: {
-    [key: string]: GetTreeResponseItem;
-  }): boolean {
+  private async vaultIsEmpty(): Promise<boolean> {
+    const { files, folders } = await this.vault.adapter.list(
+      this.vault.getRoot().path,
+    );
+    // There are files or folders in the vault dir
     return (
-      Object.keys(files).filter((filePath: string) =>
-        filePath.startsWith(this.settings.repoContentDir),
-      ).length === 0
+      files.length === 0 ||
+      // We filter out the config dir since is always present so it's fine if we find it.
+      folders.filter((f) => f !== this.vault.configDir).length === 0
     );
-  }
-
-  /**
-   * Returns true if the local content dir is empty.
-   * If the local content dir is the vault root the config dir is ignored.
-   */
-  private async localContentDirIsEmpty(): Promise<boolean> {
-    const localContentDirExists = await this.vault.adapter.exists(
-      this.settings.localContentDir,
-    );
-    if (localContentDirExists) {
-      const { files, folders } = await this.vault.adapter.list(
-        this.settings.localContentDir,
-      );
-      // There are files or folders in the local content dir
-      return (
-        files.length === 0 ||
-        // We filter out the config dir in case the user wants to sync the whole
-        // vault. The config dir is always present so it's fine if we find it.
-        folders.filter((f) => f !== this.vault.configDir).length === 0
-      );
-    }
-    return true;
   }
 
   /**
    * Handles first sync with remote and local.
-   * This fails neither remote nor local folders are empty.
+   * This fails if neither remote nor local folders are empty.
    */
   async firstSync() {
     let repositoryIsBare = false;
@@ -122,21 +98,21 @@ export default class SyncManager {
       treeSha = res.sha;
     }
 
-    const remoteContentDirIsEmpty = this.remoteContentDirIsEmpty(files);
-    const localContentDirIsEmpty = await this.localContentDirIsEmpty();
+    const remoteRepoIsEmpty = Object.keys(files).length === 0;
+    const vaultIsEmpty = await this.vaultIsEmpty();
 
-    if (!remoteContentDirIsEmpty && !localContentDirIsEmpty) {
+    if (!remoteRepoIsEmpty && !vaultIsEmpty) {
       // Both have files, we can't sync, show error
       throw new Error("Both remote and local have files, can't sync");
-    } else if (remoteContentDirIsEmpty || repositoryIsBare) {
+    } else if (remoteRepoIsEmpty || repositoryIsBare) {
       // Remote has no files and no manifest, let's just upload whatever we have locally.
-      // This is fine even if the local content dir is empty.
+      // This is fine even if the vault is empty.
       // The most important thing at this point is that the remote manifest is created.
       await this.firstSyncFromLocal(files, treeSha);
     } else {
       // Local has no files and there's no manifest in the remote repo.
-      // Let's download whatever we have in the remote content dir.
-      // This is fine even if the remote content dir is empty.
+      // Let's download whatever we have in the remote repo.
+      // This is fine even if the remote repo is empty.
       // In this case too the important step is that the remote manifest is created.
       await this.firstSyncFromRemote(files, treeSha);
     }
@@ -157,21 +133,16 @@ export default class SyncManager {
     await Promise.all(
       Object.keys(files)
         .filter((filePath: string) => {
-          if (filePath.startsWith(this.settings.repoContentDir)) {
-            return true;
-          } else if (
-            filePath === `${this.vault.configDir}/github-sync-metadata.json`
-          ) {
-            // The metadata file must always be synced
-            return true;
-          } else if (
+          if (
             this.settings.syncConfigDir &&
-            filePath.startsWith(this.vault.configDir)
+            filePath.startsWith(this.vault.configDir) &&
+            filePath !== `${this.vault.configDir}/github-sync-metadata.json`
           ) {
-            // Include files in the config dir only if the user has enabled it
-            return true;
+            // Include files in the config dir only if the user has enabled it.
+            // The metadata file must always be synced.
+            return false;
           }
-          return false;
+          return true;
         })
         .map(async (filePath: string) => {
           await this.downloadFile(files[filePath], Date.now());
@@ -197,9 +168,8 @@ export default class SyncManager {
         async (filePath: string) => {
           const normalizedPath = normalizePath(filePath);
           const content = await this.vault.adapter.read(normalizedPath);
-          const { remotePath } = this.metadataStore.data.files[filePath];
-          newTreeFiles[remotePath] = {
-            path: remotePath,
+          newTreeFiles[filePath] = {
+            path: filePath,
             mode: "100644",
             type: "blob",
             content: content,
@@ -212,10 +182,10 @@ export default class SyncManager {
 
   /**
    * Handles first sync with the remote repository.
-   * This must be called in case there are no files in the remote content dir and no manifest while
-   * local content dir has files and a manifest.
+   * This must be called in case there are no files in the remote repo and no manifest while
+   * local vault has files and a manifest.
    *
-   * @param files All files in the remote repository, including those not in its content dir.
+   * @param files All files in the remote repository
    * @param treeSha The SHA of the tree in the remote repository.
    */
   async firstSyncFromLocal(
@@ -241,9 +211,8 @@ export default class SyncManager {
         async (filePath: string) => {
           const normalizedPath = normalizePath(filePath);
           const content = await this.vault.adapter.read(normalizedPath);
-          const { remotePath } = this.metadataStore.data.files[filePath];
-          newTreeFiles[remotePath] = {
-            path: remotePath,
+          newTreeFiles[filePath] = {
+            path: filePath,
             mode: "100644",
             type: "blob",
             content: content,
@@ -286,12 +255,12 @@ export default class SyncManager {
           if (resolution) {
             conflictResolutions.push({
               type: "download",
-              filePath: conflicts[index].remoteFile.localPath,
+              filePath: conflicts[index].remoteFile.path,
             });
           } else {
             conflictResolutions.push({
               type: "upload",
-              filePath: conflicts[index].localFile.localPath,
+              filePath: conflicts[index].localFile.path,
             });
           }
         },
@@ -334,12 +303,8 @@ export default class SyncManager {
           case "upload": {
             const normalizedPath = normalizePath(action.filePath);
             const content = await this.vault.adapter.read(normalizedPath);
-            const remotePath = action.filePath.replace(
-              this.settings.localContentDir,
-              this.settings.repoContentDir,
-            );
-            newTreeFiles[remotePath] = {
-              path: remotePath,
+            newTreeFiles[action.filePath] = {
+              path: action.filePath,
               mode: "100644",
               type: "blob",
               content: content,
@@ -347,9 +312,7 @@ export default class SyncManager {
             break;
           }
           case "delete_remote": {
-            const { remotePath } =
-              this.metadataStore.data.files[action.filePath];
-            newTreeFiles[remotePath].sha = null;
+            newTreeFiles[action.filePath].sha = null;
             break;
           }
           case "download":
@@ -365,12 +328,8 @@ export default class SyncManager {
       ...actions
         .filter((action) => action.type === "download")
         .map(async (action: SyncAction) => {
-          const remotePath = action.filePath.replace(
-            this.settings.localContentDir,
-            this.settings.repoContentDir,
-          );
           await this.downloadFile(
-            files[remotePath],
+            files[action.filePath],
             remoteMetadata.files[action.filePath].lastModified,
           );
         }),
@@ -386,8 +345,8 @@ export default class SyncManager {
 
   /**
    * Finds conflicts between local and remote files.
-   * @param remoteFiles All files in the remote content dir
-   * @param localFiles All files in the local content dir
+   * @param remoteFiles All files in the remote repo
+   * @param localFiles All files in the local vault
    * @returns List of objects with both remote and local conflicting files metadata
    */
   findConflicts(
@@ -432,8 +391,8 @@ export default class SyncManager {
   /**
    * Determines which sync action to take for each file.
    *
-   * @param remoteFiles All files in the remote content dir
-   * @param localFiles All files in the local content dir
+   * @param remoteFiles All files in the remote repo
+   * @param localFiles All files in the local vault
    *
    * @returns List of SyncActions
    */
@@ -589,30 +548,26 @@ export default class SyncManager {
 
   async downloadFile(file: GetTreeResponseItem, lastModified: number) {
     const url = file.url;
-    const destinationFile = file.path.replace(
-      this.settings.repoContentDir,
-      this.settings.localContentDir,
-    );
-    const fileMetadata = this.metadataStore.data.files[destinationFile];
+    const fileMetadata = this.metadataStore.data.files[file.path];
     if (fileMetadata && fileMetadata.sha === file.sha) {
       // File already exists and has the same SHA, no need to download it again.
       return;
     }
 
     const blob = await this.client.getBlob(url);
-    const destinationFolder = normalizePath(
-      destinationFile.split("/").slice(0, -1).join("/"),
+    const normalizedPath = normalizePath(file.path);
+    const fileFolder = normalizePath(
+      normalizedPath.split("/").slice(0, -1).join("/"),
     );
-    if (!(await this.vault.adapter.exists(destinationFolder))) {
-      await this.vault.adapter.mkdir(destinationFolder);
+    if (!(await this.vault.adapter.exists(fileFolder))) {
+      await this.vault.adapter.mkdir(fileFolder);
     }
     this.vault.adapter.writeBinary(
-      normalizePath(destinationFile),
+      normalizedPath,
       Buffer.from(blob.content, "base64"),
     );
-    this.metadataStore.data.files[destinationFile] = {
-      localPath: destinationFile,
-      remotePath: file.path,
+    this.metadataStore.data.files[file.path] = {
+      path: file.path,
       sha: file.sha,
       dirty: false,
       justDownloaded: true,
@@ -633,7 +588,7 @@ export default class SyncManager {
     await this.metadataStore.load();
     if (Object.keys(this.metadataStore.data.files).length === 0) {
       let files = [];
-      let folders = [this.settings.localContentDir];
+      let folders = [this.vault.getRoot().path];
       while (folders.length > 0) {
         const folder = folders.pop();
         if (folder === undefined) {
@@ -653,28 +608,8 @@ export default class SyncManager {
           return;
         }
 
-        // We change the remote path only if the file is not in the config dir
-        // as that directory is always at the root of the repo.
-        // If it's synced obviously.
-        let remotePath = filePath;
-        if (!filePath.startsWith(this.vault.configDir)) {
-          if (this.settings.localContentDir === "") {
-            if (this.settings.repoContentDir === "") {
-              remotePath = filePath;
-            } else {
-              remotePath = `${this.settings.repoContentDir}/${filePath}`;
-            }
-          } else {
-            remotePath = filePath.replace(
-              this.settings.localContentDir,
-              this.settings.repoContentDir,
-            );
-          }
-        }
-
         this.metadataStore.data.files[filePath] = {
-          localPath: filePath,
-          remotePath: remotePath,
+          path: filePath,
           sha: null,
           dirty: false,
           justDownloaded: false,
@@ -683,12 +618,11 @@ export default class SyncManager {
       });
 
       // Must be the first time we run, initialize the metadata store
-      // with itself and all files in the local content dir.
+      // with itself and all files in the vault.
       this.metadataStore.data.files[
         `${this.vault.configDir}/github-sync-metadata.json`
       ] = {
-        localPath: `${this.vault.configDir}/github-sync-metadata.json`,
-        remotePath: `${this.vault.configDir}/github-sync-metadata.json`,
+        path: `${this.vault.configDir}/github-sync-metadata.json`,
         sha: null,
         dirty: false,
         justDownloaded: false,
@@ -719,9 +653,7 @@ export default class SyncManager {
     // Add them to the metadata store
     files.forEach((filePath: string) => {
       this.metadataStore.data.files[filePath] = {
-        localPath: filePath,
-        // Remote path is the same for config dir files
-        remotePath: filePath,
+        path: filePath,
         sha: null,
         dirty: false,
         justDownloaded: false,

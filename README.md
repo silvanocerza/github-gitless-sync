@@ -12,8 +12,6 @@ These are the main features of the plugin:
 - Desktop and mobile support
 - Doesn't require `git`
 - Multiple vaults sync
-- Partial vault sync
-- Partial remote repository sync
 - Automatic sync on fixed interval
 - Manual sync
 
@@ -62,15 +60,6 @@ This will always work even if sync on interval is enabled.
 If you don't want to see the button you can hide it, just check the plugin settings.
 
 The `Sync with GitHub` command is also available.
-
-### Partial sync
-
-Optionally you can choose to sync only a part of your vault and/or your repository.
-This might be useful if you keep the sources for your blog in your vault as example, though you sync with some other service.
-
-> [!WARNING]
-> For the time being changing the directories after onboarding is not supported.
-> I mean, you can do it, though I have not tested it and it's likely to break in unforeseeable ways.
 
 ### Config sync
 

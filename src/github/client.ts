@@ -43,8 +43,6 @@ export default class GithubClient {
     private owner: string,
     private repo: string,
     private branch: string,
-    private repoContentDir: string,
-    private configDir: string,
   ) {}
 
   headers() {

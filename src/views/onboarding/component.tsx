@@ -3,21 +3,13 @@ import SyncManager from "src/sync-manager";
 import { usePlugin } from "src/views/hooks";
 import { DEFAULT_SETTINGS, GitHubSyncSettings } from "src/settings/settings";
 
-const STEPS = [
-  "welcome",
-  "repo",
-  "token",
-  "folders",
-  "sync",
-  "first_sync",
-] as const;
+const STEPS = ["welcome", "repo", "token", "sync", "first_sync"] as const;
 
 type Step = (typeof STEPS)[number];
 
 type StepData = {
   repo: { owner: string; repo: string; branch: string };
   token: { token: string };
-  folders: { repoFolder: string; vaultFolder: string };
   sync: {
     mode: "manual" | "interval";
     syncOnStart: boolean;
@@ -29,7 +21,6 @@ type StepData = {
 const DEFAULT_STEP_DATA: StepData = {
   repo: { owner: "", repo: "", branch: "" },
   token: { token: "" },
-  folders: { repoFolder: "", vaultFolder: "" },
   sync: {
     mode: "manual",
     syncOnStart: false,
@@ -187,62 +178,6 @@ const TokenStepComponent = ({
   );
 };
 
-const FoldersStepComponent = ({
-  values,
-  onChange,
-}: {
-  values: { repoFolder: string; vaultFolder: string };
-  onChange: (values: { repoFolder: string; vaultFolder: string }) => void;
-}) => {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexFlow: "column",
-        flexGrow: 1,
-        justifyContent: "center",
-        alignItems: "center",
-      }}
-    >
-      <p style={{ textAlign: "center" }}>
-        Optionally you can sync only part of your remote repository or your
-        vault.
-      </p>
-      <p style={{ textAlign: "center" }}>
-        Leave blank to sync the whole repository and the whole vault.
-      </p>
-      <p style={{ textAlign: "center" }}>
-        If you sync only a part of this vault remember you must always reuse the
-        same local path if you want to sync other vaults too.
-      </p>
-      <div
-        style={{
-          display: "flex",
-          flexFlow: "column",
-          gap: "var(--size-4-2)",
-        }}
-      >
-        <input
-          type="text"
-          spellCheck="false"
-          placeholder="Repository folder"
-          value={values.repoFolder}
-          onChange={(e) => onChange({ ...values, repoFolder: e.target.value })}
-          style={{ width: "100%" }}
-        />
-        <input
-          type="text"
-          spellCheck="false"
-          placeholder="Vault folder"
-          value={values.vaultFolder}
-          onChange={(e) => onChange({ ...values, vaultFolder: e.target.value })}
-          style={{ width: "100%" }}
-        />
-      </div>
-    </div>
-  );
-};
-
 const SyncSettingsStepComponent = ({
   values,
   onChange,
@@ -356,8 +291,6 @@ const FirstSyncStepComponent = ({
         githubOwner: stepData.repo.owner,
         githubRepo: stepData.repo.repo,
         githubBranch: stepData.repo.branch,
-        repoContentDir: stepData.folders.repoFolder,
-        localContentDir: stepData.folders.vaultFolder,
         syncStrategy: stepData.sync.mode,
         syncOnStartup: stepData.sync.syncOnStart,
         syncConfigDir: stepData.sync.syncConfigDir,
@@ -516,13 +449,6 @@ const OnBoardingComponent = ({ onClose }: { onClose: () => Promise<void> }) => {
           <TokenStepComponent
             values={stepData.token}
             onChange={(data) => updateStepData("token", data)}
-          />
-        );
-      case "folders":
-        return (
-          <FoldersStepComponent
-            values={stepData.folders}
-            onChange={(data) => updateStepData("folders", data)}
           />
         );
       case "sync":
