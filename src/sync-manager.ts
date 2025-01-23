@@ -28,6 +28,11 @@ export default class SyncManager {
   private eventsListener: EventsListener;
   private syncIntervalId: number | null = null;
 
+  // Use to track if syncing is in progress, this ideally
+  // prevents multiple syncs at the same time and creation
+  // of messy conflicts.
+  private syncing: boolean = false;
+
   constructor(
     private vault: Vault,
     private settings: GitHubSyncSettings,
@@ -70,6 +75,21 @@ export default class SyncManager {
    * This fails if neither remote nor local folders are empty.
    */
   async firstSync() {
+    if (this.syncing) {
+      this.logger.info("First sync already in progress");
+      // We're already syncing, nothing to do
+      return;
+    }
+
+    this.syncing = true;
+    try {
+      this.firstSyncImpl();
+    } finally {
+      this.syncing = false;
+    }
+  }
+
+  private async firstSyncImpl() {
     await this.logger.info("Starting first sync");
     let repositoryIsBare = false;
     let res: RepoContent;
@@ -83,6 +103,7 @@ export default class SyncManager {
       treeSha = res.sha;
     } catch (err) {
       if (err.status !== 409) {
+        this.syncing = false;
         throw err;
       }
       // The repository is bare, meaning it has no tree, no commits and no branches
@@ -137,7 +158,7 @@ export default class SyncManager {
    * @param files All files in the remote repository, including those not in its content dir.
    * @param treeSha The SHA of the tree in the remote repository.
    */
-  async firstSyncFromRemote(
+  private async firstSyncFromRemote(
     files: { [key: string]: GetTreeResponseItem },
     treeSha: string,
   ) {
@@ -200,7 +221,7 @@ export default class SyncManager {
    * @param files All files in the remote repository
    * @param treeSha The SHA of the tree in the remote repository.
    */
-  async firstSyncFromLocal(
+  private async firstSyncFromLocal(
     files: { [key: string]: GetTreeResponseItem },
     treeSha: string,
   ) {
@@ -241,6 +262,21 @@ export default class SyncManager {
    * @returns
    */
   async sync() {
+    if (this.syncing) {
+      this.logger.info("Sync already in progress");
+      // We're already syncing, nothing to do
+      return;
+    }
+
+    this.syncing = true;
+    try {
+      await this.syncImpl();
+    } finally {
+      this.syncing = false;
+    }
+  }
+
+  private async syncImpl() {
     await this.logger.info("Starting sync");
     const { files, sha: treeSha } = await this.client.getRepoContent();
     const manifest = files[`${this.vault.configDir}/${MANIFEST_FILE_NAME}`];
