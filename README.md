@@ -3,10 +3,17 @@
 Plugin to sync a GitHub repository with an Obsidian vault.
 
 > [!CAUTION]
-> This is still in beta.
+> This is still in beta, logging is enabled by default.
+> I suggest you don't disable for the time being while using the plugin
+> as the logging information might be useful to fix some issues.
 
 I highly recommend not using this plugin with another sync service.
 This might create problems for this plugin when determining what needs to be synced between remote repository and local vault.
+
+### Issues
+
+If you find any problem please open an issue with as many details as possible.
+If could include the `github-sync.log` file found in your config directory that would be very helpful.
 
 ## Features
 
@@ -81,7 +88,7 @@ needs to store some metadata to correctly sync
 I still have to add a reset button to clean the plugin settings and metadata.
 
 For the time being you can reset the plugin by disabling it in the plugins list and deleting the `github-sync-metadata.json`
-file in your config directory, `.obsidian` by default.
+and `github-sync.log` files in your config directory, `.obsidian` by default.
 
 ## License
 
