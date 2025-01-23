@@ -5,6 +5,9 @@ Plugin to sync a GitHub repository with an Obsidian vault.
 > [!CAUTION]
 > This is still in beta.
 
+I highly recommend not using this plugin with another sync service.
+This might create problems for this plugin when determining what needs to be synced between remote repository and local vault.
+
 ## Features
 
 These are the main features of the plugin:
@@ -65,8 +68,6 @@ The `Sync with GitHub` command is also available.
 
 If you want to sync your vault configs with other vault you can enable that.
 It will sync the whole folder, that is `.obsidian` by default, including all plugins and themes.
-
-If you use another sync service it might be best to disable this option.
 
 > [!NOTE]
 > The `.obsidian` folder will always be in the root of your repository, even if you choose
