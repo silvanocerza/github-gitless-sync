@@ -131,4 +131,24 @@ export default class GithubClient {
     });
     return res.json;
   }
+
+  /**
+   * Create a new file in the repo, the content must be base64 encoded or the request will fail.
+   *
+   * @param message commit message
+   * @param path path to create in the repo
+   * @param content base64 encoded content of the file
+   */
+  async createFile(path: string, content: string, message: string) {
+    await requestUrl({
+      url: `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${path}`,
+      headers: this.headers(),
+      method: "PUT",
+      body: JSON.stringify({
+        message: message,
+        content: content,
+        branch: this.branch,
+      }),
+    });
+  }
 }

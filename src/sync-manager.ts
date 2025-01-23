@@ -2,6 +2,7 @@ import { Vault, normalizePath } from "obsidian";
 import GithubClient, {
   GetTreeResponseItem,
   NewTreeRequestItem,
+  RepoContent,
 } from "./github/client";
 import MetadataStore, { FileMetadata, Metadata } from "./metadata-store";
 import EventsListener from "./events-listener";
@@ -85,7 +86,41 @@ export default class SyncManager {
    * This fails neither remote nor local folders are empty.
    */
   async firstSync() {
-    const { files, sha: treeSha } = await this.client.getRepoContent();
+    let repositoryIsBare = false;
+    let res: RepoContent;
+    let files: {
+      [key: string]: GetTreeResponseItem;
+    } = {};
+    let treeSha: string = "";
+    try {
+      res = await this.client.getRepoContent();
+      files = res.files;
+      treeSha = res.sha;
+    } catch (err) {
+      if (err.status !== 409) {
+        throw err;
+      }
+      // The repository is bare, meaning it has no tree, no commits and no branches
+      repositoryIsBare = true;
+    }
+
+    if (repositoryIsBare) {
+      // Since the repository is completely empty we need to create a first commit.
+      // We can't create that by going throught the normal sync process since the
+      // API doesn't let us create a new tree when the repo is empty.
+      // So we create a the manifest file as the first commit, since we're going
+      // to create that in any case right after this.
+      await this.client.createFile(
+        `${this.vault.configDir}/github-sync-metadata.json`,
+        "",
+        "Initial commit",
+      );
+      // Now get the repo content again cause we know for sure it will return a
+      // valid sha that we can use to create the first sync commit.
+      res = await this.client.getRepoContent();
+      files = res.files;
+      treeSha = res.sha;
+    }
 
     const remoteContentDirIsEmpty = this.remoteContentDirIsEmpty(files);
     const localContentDirIsEmpty = await this.localContentDirIsEmpty();
@@ -93,7 +128,7 @@ export default class SyncManager {
     if (!remoteContentDirIsEmpty && !localContentDirIsEmpty) {
       // Both have files, we can't sync, show error
       throw new Error("Both remote and local have files, can't sync");
-    } else if (remoteContentDirIsEmpty) {
+    } else if (remoteContentDirIsEmpty || repositoryIsBare) {
       // Remote has no files and no manifest, let's just upload whatever we have locally.
       // This is fine even if the local content dir is empty.
       // The most important thing at this point is that the remote manifest is created.
@@ -624,7 +659,11 @@ export default class SyncManager {
         let remotePath = filePath;
         if (!filePath.startsWith(this.vault.configDir)) {
           if (this.settings.localContentDir === "") {
-            remotePath = `${this.settings.repoContentDir}/${filePath}`;
+            if (this.settings.repoContentDir === "") {
+              remotePath = filePath;
+            } else {
+              remotePath = `${this.settings.repoContentDir}/${filePath}`;
+            }
           } else {
             remotePath = filePath.replace(
               this.settings.localContentDir,
