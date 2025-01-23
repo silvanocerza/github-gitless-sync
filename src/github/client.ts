@@ -1,5 +1,6 @@
 import { requestUrl } from "obsidian";
 import Logger from "src/logger";
+import { GitHubSyncSettings } from "src/settings/settings";
 
 export type RepoContent = {
   files: { [key: string]: GetTreeResponseItem };
@@ -40,17 +41,14 @@ export type BlobFile = {
 
 export default class GithubClient {
   constructor(
-    private token: string,
-    private owner: string,
-    private repo: string,
-    private branch: string,
+    private settings: GitHubSyncSettings,
     private logger: Logger,
   ) {}
 
   headers() {
     return {
       Accept: "application/vnd.github+json",
-      Authorization: `Bearer ${this.token}`,
+      Authorization: `Bearer ${this.settings.githubToken}`,
       "X-GitHub-Api-Version": "2022-11-28",
     };
   }
@@ -62,7 +60,7 @@ export default class GithubClient {
    */
   async getRepoContent(): Promise<RepoContent> {
     const res = await requestUrl({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/trees/${this.branch}?recursive=1`,
+      url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/trees/${this.settings.githubBranch}?recursive=1`,
       headers: this.headers(),
       throw: false,
     });
@@ -84,7 +82,7 @@ export default class GithubClient {
 
   async createTree(tree: { tree: NewTreeRequestItem[]; base_tree: string }) {
     const res = await requestUrl({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/trees`,
+      url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/trees`,
       headers: this.headers(),
       method: "POST",
       body: JSON.stringify(tree),
@@ -99,7 +97,7 @@ export default class GithubClient {
 
   async createCommit(message: string, treeSha: string, parent: string) {
     const res = await requestUrl({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/commits`,
+      url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/commits`,
       headers: this.headers(),
       method: "POST",
       body: JSON.stringify({
@@ -118,7 +116,7 @@ export default class GithubClient {
 
   async getBranchHeadSha() {
     const res = await requestUrl({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.branch}`,
+      url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/refs/heads/${this.settings.githubBranch}`,
       headers: this.headers(),
       throw: false,
     });
@@ -131,7 +129,7 @@ export default class GithubClient {
 
   async updateBranchHead(sha: string) {
     const res = await requestUrl({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.branch}`,
+      url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/refs/heads/${this.settings.githubBranch}`,
       headers: this.headers(),
       method: "PATCH",
       body: JSON.stringify({
@@ -171,13 +169,13 @@ export default class GithubClient {
    */
   async createFile(path: string, content: string, message: string) {
     const res = await requestUrl({
-      url: `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${path}`,
+      url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/contents/${path}`,
       headers: this.headers(),
       method: "PUT",
       body: JSON.stringify({
         message: message,
         content: content,
-        branch: this.branch,
+        branch: this.settings.githubBranch,
       }),
       throw: false,
     });

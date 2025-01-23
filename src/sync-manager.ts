@@ -40,13 +40,7 @@ export default class SyncManager {
     private logger: Logger,
   ) {
     this.metadataStore = new MetadataStore(this.vault);
-    this.client = new GithubClient(
-      this.settings.githubToken,
-      this.settings.githubOwner,
-      this.settings.githubRepo,
-      this.settings.githubBranch,
-      this.logger,
-    );
+    this.client = new GithubClient(this.settings, this.logger);
     this.eventsListener = new EventsListener(
       this.vault,
       this.metadataStore,
