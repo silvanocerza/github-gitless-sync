@@ -4,7 +4,11 @@ import GithubClient, {
   NewTreeRequestItem,
   RepoContent,
 } from "./github/client";
-import MetadataStore, { FileMetadata, Metadata } from "./metadata-store";
+import MetadataStore, {
+  FileMetadata,
+  Metadata,
+  MANIFEST_FILE_NAME,
+} from "./metadata-store";
 import EventsListener from "./events-listener";
 import { GitHubSyncSettings } from "./settings/settings";
 import Logger from "./logger";
@@ -93,7 +97,7 @@ export default class SyncManager {
       // So we create a the manifest file as the first commit, since we're going
       // to create that in any case right after this.
       await this.client.createFile(
-        `${this.vault.configDir}/github-sync-metadata.json`,
+        `${this.vault.configDir}/${MANIFEST_FILE_NAME}`,
         "",
         "Initial commit",
       );
@@ -144,7 +148,7 @@ export default class SyncManager {
           if (
             this.settings.syncConfigDir &&
             filePath.startsWith(this.vault.configDir) &&
-            filePath !== `${this.vault.configDir}/github-sync-metadata.json`
+            filePath !== `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
           ) {
             // Include files in the config dir only if the user has enabled it.
             // The metadata file must always be synced.
@@ -239,7 +243,7 @@ export default class SyncManager {
   async sync() {
     await this.logger.info("Starting sync");
     const { files, sha: treeSha } = await this.client.getRepoContent();
-    const manifest = files[`${this.vault.configDir}/github-sync-metadata.json`];
+    const manifest = files[`${this.vault.configDir}/${MANIFEST_FILE_NAME}`];
 
     if (manifest === undefined) {
       await this.logger.error("Remote manifest is missing", { files, treeSha });
@@ -512,8 +516,7 @@ export default class SyncManager {
       return actions.filter((action: SyncAction) => {
         return (
           !action.filePath.startsWith(this.vault.configDir) ||
-          action.filePath ===
-            `${this.vault.configDir}/github-sync-metadata.json`
+          action.filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
         );
       });
     }
@@ -536,8 +539,8 @@ export default class SyncManager {
     this.metadataStore.save();
 
     // Update manifest in list of new tree items
-    delete treeFiles[`${this.vault.configDir}/github-sync-metadata.json`].sha;
-    treeFiles[`${this.vault.configDir}/github-sync-metadata.json`].content =
+    delete treeFiles[`${this.vault.configDir}/${MANIFEST_FILE_NAME}`].sha;
+    treeFiles[`${this.vault.configDir}/${MANIFEST_FILE_NAME}`].content =
       JSON.stringify(this.metadataStore.data);
 
     // Create the new tree
@@ -639,9 +642,9 @@ export default class SyncManager {
       // Must be the first time we run, initialize the metadata store
       // with itself and all files in the vault.
       this.metadataStore.data.files[
-        `${this.vault.configDir}/github-sync-metadata.json`
+        `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
       ] = {
-        path: `${this.vault.configDir}/github-sync-metadata.json`,
+        path: `${this.vault.configDir}/${MANIFEST_FILE_NAME}`,
         sha: null,
         dirty: false,
         justDownloaded: false,
@@ -708,7 +711,7 @@ export default class SyncManager {
 
     // Remove all them from the metadata store
     files.forEach((filePath: string) => {
-      if (filePath === `${this.vault.configDir}/github-sync-metadata.json`) {
+      if (filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}`) {
         // We don't want to remove the metadata file even if it's in the config dir
         return;
       }

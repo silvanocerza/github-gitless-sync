@@ -1,5 +1,7 @@
 import { Vault, normalizePath } from "obsidian";
 
+export const MANIFEST_FILE_NAME = "github-sync-metadata.json" as const;
+
 /**
  * A file metadata.
  * Store info that makes easier to track a file locally and in the remote repo.
@@ -42,7 +44,7 @@ export default class MetadataStore {
 
   constructor(private vault: Vault) {
     this.metadataFile = normalizePath(
-      `${this.vault.configDir}/github-sync-metadata.json`,
+      `${this.vault.configDir}/${MANIFEST_FILE_NAME}`,
     );
   }
 

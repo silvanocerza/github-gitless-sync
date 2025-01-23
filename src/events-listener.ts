@@ -1,5 +1,5 @@
 import { Vault, TAbstractFile, TFolder } from "obsidian";
-import MetadataStore from "./metadata-store";
+import MetadataStore, { MANIFEST_FILE_NAME } from "./metadata-store";
 import { GitHubSyncSettings } from "./settings/settings";
 import Logger from "./logger";
 
@@ -132,7 +132,7 @@ export default class EventsListener {
   }
 
   private isSyncable(filePath: string) {
-    if (filePath === `${this.vault.configDir}/github-sync-metadata.json`) {
+    if (filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}`) {
       // Manifest file must always be synced
       return true;
     } else if (
