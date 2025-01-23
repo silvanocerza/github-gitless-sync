@@ -1,4 +1,4 @@
-import { Vault, normalizePath } from "obsidian";
+import { Vault, normalizePath, base64ToArrayBuffer } from "obsidian";
 import GithubClient, {
   GetTreeResponseItem,
   NewTreeRequestItem,
@@ -619,7 +619,7 @@ export default class SyncManager {
     }
     this.vault.adapter.writeBinary(
       normalizedPath,
-      Buffer.from(blob.content, "base64"),
+      base64ToArrayBuffer(blob.content),
     );
     this.metadataStore.data.files[file.path] = {
       path: file.path,
