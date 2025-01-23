@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   syncInterval: 1,
   syncOnStartup: false,
   syncConfigDir: true,
-  conflictHandling: "ask",
+  conflictHandling: "overwrite",
   showStatusBarItem: true,
   showSyncRibbonButton: true,
   enableLogging: true,

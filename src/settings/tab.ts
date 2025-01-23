@@ -182,7 +182,8 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
             this.plugin.settings.conflictHandling = value;
             await this.plugin.saveSettings();
           });
-      });
+      })
+      .setDisabled(true);
 
     containerEl.createEl("h2", { text: "Interface" });
 
