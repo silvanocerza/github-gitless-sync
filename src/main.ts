@@ -4,10 +4,12 @@ import GitHubSyncSettingsTab from "./settings/tab";
 import SyncManager from "./sync-manager";
 import { FileMetadata } from "./metadata-store";
 import { OnboardingDialog } from "./views/onboarding/view";
+import Logger from "./logger";
 
 export default class GitHubSyncPlugin extends Plugin {
   settings: GitHubSyncSettings;
   syncManager: SyncManager;
+  logger: Logger;
 
   statusBarItem: HTMLElement | null = null;
   uploadModifiedFilesRibbonIcon: HTMLElement | null = null;
@@ -27,6 +29,8 @@ export default class GitHubSyncPlugin extends Plugin {
   }
 
   async onload() {
+    this.logger = new Logger(this.app.vault);
+
     await this.loadSettings();
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
@@ -35,6 +39,7 @@ export default class GitHubSyncPlugin extends Plugin {
       this.app.vault,
       this.settings,
       this.onConflicts.bind(this),
+      this.logger,
     );
     await this.syncManager.loadMetadata();
 

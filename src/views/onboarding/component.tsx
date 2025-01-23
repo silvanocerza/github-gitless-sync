@@ -306,6 +306,7 @@ const FirstSyncStepComponent = ({
         async (_) => {
           return [];
         },
+        plugin.logger,
       );
       await syncManager.loadMetadata();
       // When loading the plugin we also load the metadata, though since by default

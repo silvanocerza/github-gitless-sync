@@ -1,4 +1,5 @@
 import { requestUrl } from "obsidian";
+import Logger from "src/logger";
 
 export type RepoContent = {
   files: { [key: string]: GetTreeResponseItem };
@@ -43,6 +44,7 @@ export default class GithubClient {
     private owner: string,
     private repo: string,
     private branch: string,
+    private logger: Logger,
   ) {}
 
   headers() {
@@ -62,7 +64,12 @@ export default class GithubClient {
     const res = await requestUrl({
       url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/trees/${this.branch}?recursive=1`,
       headers: this.headers(),
+      throw: false,
     });
+    if (res.status < 200 || res.status >= 400) {
+      await this.logger.error("Failed to get repo content", res);
+      throw new Error(`Failed to get repo content, status ${res.status}`);
+    }
     const files = res.json.tree
       .filter((file: GetTreeResponseItem) => file.type === "blob")
       .reduce(
@@ -81,7 +88,12 @@ export default class GithubClient {
       headers: this.headers(),
       method: "POST",
       body: JSON.stringify(tree),
+      throw: false,
     });
+    if (res.status < 200 || res.status >= 400) {
+      await this.logger.error("Failed to create tree", res);
+      throw new Error(`Failed to create tree, status ${res.status}`);
+    }
     return res.json.sha;
   }
 
@@ -95,7 +107,12 @@ export default class GithubClient {
         tree: treeSha,
         parents: [parent],
       }),
+      throw: false,
     });
+    if (res.status < 200 || res.status >= 400) {
+      await this.logger.error("Failed to create commit", res);
+      throw new Error(`Failed to create commit, status ${res.status}`);
+    }
     return res.json.sha;
   }
 
@@ -103,19 +120,29 @@ export default class GithubClient {
     const res = await requestUrl({
       url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.branch}`,
       headers: this.headers(),
+      throw: false,
     });
+    if (res.status < 200 || res.status >= 400) {
+      await this.logger.error("Failed to get branch head sha", res);
+      throw new Error(`Failed to get branch head sha, status ${res.status}`);
+    }
     return res.json.object.sha;
   }
 
   async updateBranchHead(sha: string) {
-    await requestUrl({
+    const res = await requestUrl({
       url: `https://api.github.com/repos/${this.owner}/${this.repo}/git/refs/heads/${this.branch}`,
       headers: this.headers(),
       method: "PATCH",
       body: JSON.stringify({
         sha: sha,
       }),
+      throw: false,
     });
+    if (res.status < 200 || res.status >= 400) {
+      await this.logger.error("Failed to update branch head sha", res);
+      throw new Error(`Failed to update branch head sha, status ${res.status}`);
+    }
   }
 
   /**
@@ -126,7 +153,12 @@ export default class GithubClient {
     const res = await requestUrl({
       url: url,
       headers: this.headers(),
+      throw: false,
     });
+    if (res.status < 200 || res.status >= 400) {
+      await this.logger.error("Failed to get blob", res);
+      throw new Error(`Failed to get blob, status ${res.status}`);
+    }
     return res.json;
   }
 
@@ -138,7 +170,7 @@ export default class GithubClient {
    * @param content base64 encoded content of the file
    */
   async createFile(path: string, content: string, message: string) {
-    await requestUrl({
+    const res = await requestUrl({
       url: `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${path}`,
       headers: this.headers(),
       method: "PUT",
@@ -147,6 +179,11 @@ export default class GithubClient {
         content: content,
         branch: this.branch,
       }),
+      throw: false,
     });
+    if (res.status < 200 || res.status >= 400) {
+      await this.logger.error("Failed to create file", res);
+      throw new Error(`Failed to create file, status ${res.status}`);
+    }
   }
 }

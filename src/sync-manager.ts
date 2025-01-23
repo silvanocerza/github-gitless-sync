@@ -7,6 +7,7 @@ import GithubClient, {
 import MetadataStore, { FileMetadata, Metadata } from "./metadata-store";
 import EventsListener from "./events-listener";
 import { GitHubSyncSettings } from "./settings/settings";
+import Logger from "./logger";
 
 interface SyncAction {
   type: "upload" | "download" | "delete_local" | "delete_remote";
@@ -27,6 +28,7 @@ export default class SyncManager {
     private vault: Vault,
     private settings: GitHubSyncSettings,
     private onConflicts: OnConflictsCallback,
+    private logger: Logger,
   ) {
     this.metadataStore = new MetadataStore(this.vault);
     this.client = new GithubClient(
@@ -34,11 +36,13 @@ export default class SyncManager {
       this.settings.githubOwner,
       this.settings.githubRepo,
       this.settings.githubBranch,
+      this.logger,
     );
     this.eventsListener = new EventsListener(
       this.vault,
       this.metadataStore,
       this.settings,
+      this.logger,
     );
   }
 
@@ -62,6 +66,7 @@ export default class SyncManager {
    * This fails if neither remote nor local folders are empty.
    */
   async firstSync() {
+    await this.logger.info("Starting first sync");
     let repositoryIsBare = false;
     let res: RepoContent;
     let files: {
@@ -81,6 +86,7 @@ export default class SyncManager {
     }
 
     if (repositoryIsBare) {
+      await this.logger.info("Remote repository is bare");
       // Since the repository is completely empty we need to create a first commit.
       // We can't create that by going throught the normal sync process since the
       // API doesn't let us create a new tree when the repo is empty.
@@ -103,6 +109,7 @@ export default class SyncManager {
 
     if (!remoteRepoIsEmpty && !vaultIsEmpty) {
       // Both have files, we can't sync, show error
+      await this.logger.error("Both remote and local have files, can't sync");
       throw new Error("Both remote and local have files, can't sync");
     } else if (remoteRepoIsEmpty || repositoryIsBare) {
       // Remote has no files and no manifest, let's just upload whatever we have locally.
@@ -130,6 +137,7 @@ export default class SyncManager {
     files: { [key: string]: GetTreeResponseItem },
     treeSha: string,
   ) {
+    await this.logger.info("Starting first sync from remote files");
     await Promise.all(
       Object.keys(files)
         .filter((filePath: string) => {
@@ -192,6 +200,7 @@ export default class SyncManager {
     files: { [key: string]: GetTreeResponseItem },
     treeSha: string,
   ) {
+    await this.logger.info("Starting first sync from local files");
     const newTreeFiles = Object.keys(files)
       .map((filePath: string) => ({
         path: files[filePath].path,
@@ -228,10 +237,12 @@ export default class SyncManager {
    * @returns
    */
   async sync() {
+    await this.logger.info("Starting sync");
     const { files, sha: treeSha } = await this.client.getRepoContent();
     const manifest = files[`${this.vault.configDir}/github-sync-metadata.json`];
 
     if (manifest === undefined) {
+      await this.logger.error("Remote manifest is missing", { files, treeSha });
       throw new Error("Remote manifest is missing");
     }
 
@@ -250,6 +261,8 @@ export default class SyncManager {
       // Add the new action to the list later on
       console.log("Conflicts");
       console.log(conflicts);
+      await this.logger.warn("Found conflicts", conflicts);
+
       (await this.onConflicts(conflicts)).forEach(
         (resolution: boolean, index: number) => {
           if (resolution) {
@@ -277,8 +290,10 @@ export default class SyncManager {
 
     if (actions.length === 0) {
       // Nothing to sync
+      await this.logger.info("Nothing to sync");
       return;
     }
+    await this.logger.info("Actions to sync", actions);
 
     const newTreeFiles: { [key: string]: NewTreeRequestItem } = Object.keys(
       files,
@@ -544,6 +559,7 @@ export default class SyncManager {
     );
 
     await this.client.updateBranchHead(commitSha);
+    await this.logger.info("Sync done");
   }
 
   async downloadFile(file: GetTreeResponseItem, lastModified: number) {
@@ -585,8 +601,10 @@ export default class SyncManager {
   }
 
   async loadMetadata() {
+    await this.logger.info("Loading metadata");
     await this.metadataStore.load();
     if (Object.keys(this.metadataStore.data.files).length === 0) {
+      await this.logger.info("Metadata was empty, loading all files");
       let files = [];
       let folders = [this.vault.getRoot().path];
       while (folders.length > 0) {
@@ -595,6 +613,7 @@ export default class SyncManager {
           continue;
         }
         if (!this.settings.syncConfigDir && folder === this.vault.configDir) {
+          await this.logger.info("Skipping config dir");
           // Skip the config dir if the user doesn't want to sync it
           continue;
         }
@@ -630,6 +649,7 @@ export default class SyncManager {
       };
       this.metadataStore.save();
     }
+    await this.logger.info("Loaded metadata");
   }
 
   /**
@@ -638,6 +658,7 @@ export default class SyncManager {
    * as we need to add those files to the metadata store or they would never be synced.
    */
   async addConfigDirToMetadata() {
+    await this.logger.info("Adding config dir to metadata");
     // Get all the files in the config dir
     let files = [];
     let folders = [this.vault.configDir];
@@ -671,6 +692,7 @@ export default class SyncManager {
    * keep being synced.
    */
   async removeConfigDirFromMetadata() {
+    await this.logger.info("Removing config dir from metadata");
     // Get all the files in the config dir
     let files = [];
     let folders = [this.vault.configDir];

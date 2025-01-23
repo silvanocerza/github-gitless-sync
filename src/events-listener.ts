@@ -1,6 +1,7 @@
 import { Vault, TAbstractFile, TFolder } from "obsidian";
 import MetadataStore from "./metadata-store";
 import { GitHubSyncSettings } from "./settings/settings";
+import Logger from "./logger";
 
 /**
  * Tracks changes to local sync directory and updates files metadata.
@@ -10,6 +11,7 @@ export default class EventsListener {
     private vault: Vault,
     private metadataStore: MetadataStore,
     private settings: GitHubSyncSettings,
+    private logger: Logger,
   ) {}
 
   start() {
@@ -20,8 +22,10 @@ export default class EventsListener {
   }
 
   private async onCreate(file: TAbstractFile) {
+    await this.logger.info("Received create event", file.path);
     if (!this.isSyncable(file.path)) {
       // The file has not been created in directory that we're syncing with GitHub
+      await this.logger.info("Skipped created file", file.path);
       return;
     }
     if (file instanceof TFolder) {
@@ -35,6 +39,7 @@ export default class EventsListener {
       // It's enough to mark it as non just downloaded.
       this.metadataStore.data.files[file.path].justDownloaded = false;
       await this.metadataStore.save();
+      await this.logger.info("Updated just downloaded created file", file.path);
       return;
     }
 
@@ -47,14 +52,16 @@ export default class EventsListener {
       lastModified: Date.now(),
     };
     await this.metadataStore.save();
+    await this.logger.info("Updated created file", file.path);
   }
 
   private async onDelete(file: TAbstractFile | string) {
+    const filePath = file instanceof TAbstractFile ? file.path : file;
+    await this.logger.info("Received delete event", filePath);
     if (file instanceof TFolder) {
       // Skip folders
       return;
     }
-    const filePath = file instanceof TAbstractFile ? file.path : file;
     if (!this.isSyncable(filePath)) {
       // The file was not in directory that we're syncing with GitHub
       return;
@@ -63,11 +70,14 @@ export default class EventsListener {
     this.metadataStore.data.files[filePath].deleted = true;
     this.metadataStore.data.files[filePath].deletedAt = Date.now();
     await this.metadataStore.save();
+    await this.logger.info("Updated deleted file", filePath);
   }
 
   private async onModify(file: TAbstractFile) {
+    await this.logger.info("Received modify event", file.path);
     if (!this.isSyncable(file.path)) {
       // The file has not been create in directory that we're syncing with GitHub
+      await this.logger.info("Skipped modified file", file.path);
       return;
     }
     if (file instanceof TFolder) {
@@ -80,14 +90,20 @@ export default class EventsListener {
       // It's enough to makr it as non just downloaded.
       this.metadataStore.data.files[file.path].justDownloaded = false;
       await this.metadataStore.save();
+      await this.logger.info(
+        "Updated just downloaded modified file",
+        file.path,
+      );
       return;
     }
     this.metadataStore.data.files[file.path].lastModified = Date.now();
     this.metadataStore.data.files[file.path].dirty = true;
     await this.metadataStore.save();
+    await this.logger.info("Updated modified file", file.path);
   }
 
   private async onRename(file: TAbstractFile, oldPath: string) {
+    await this.logger.info("Received rename event", file.path);
     if (file instanceof TFolder) {
       // Skip folders
       return;
