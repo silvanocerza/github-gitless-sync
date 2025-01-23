@@ -69,10 +69,12 @@ The `Sync with GitHub` command is also available.
 If you want to sync your vault configs with other vault you can enable that.
 It will sync the whole folder, that is `.obsidian` by default, including all plugins and themes.
 
-> [!NOTE]
-> The `.obsidian` folder will always be in the root of your repository, even if you choose
-> to not sync vault configs. That happens cause the plugin needs to store some metadata to
-> correctly sync.
+Note that the `.obsidian` folder will always be present, that happens cause the plugin
+needs to store some metadata to correctly sync
+
+> [!CAUTION]
+> DO NOT sync configs if your remote repository is public.
+> That will expose the token you used to sync.
 
 ### Reset
 
