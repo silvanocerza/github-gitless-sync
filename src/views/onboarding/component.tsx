@@ -364,21 +364,23 @@ const FirstSyncStepComponent = ({
             style={loadingBarStyle()}
           ></div>
         </div>
-        <div className="progress-bar-context">
+        <div
+          className="progress-bar-context"
+          style={{
+            position: "relative",
+            top: 0,
+          }}
+        >
           {error ? <div>{error}</div> : null}
           {success ? <div>Everything is set up and ready to go.</div> : null}
         </div>
       </div>
       {success ? (
-        <button
-          style={{
-            color: "var(--text-on-accent)",
-            backgroundColor: "var(--interactive-accent)",
-          }}
-          onClick={async () => await onClose()}
-        >
-          Close
-        </button>
+        <div className="modal-button-container">
+          <button className="mod-cta" onClick={async () => await onClose()}>
+            Close
+          </button>
+        </div>
       ) : null}
     </div>
   );
@@ -515,6 +517,7 @@ const OnBoardingComponent = ({ onClose }: { onClose: () => Promise<void> }) => {
             position: "absolute",
             right: "var(--size-4-4)",
             top: "50%",
+            display: step === "first_sync" ? "none" : "",
           }}
           disabled={!isValid}
           onClick={nextStep}
