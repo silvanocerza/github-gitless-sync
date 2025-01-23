@@ -308,6 +308,16 @@ const FirstSyncStepComponent = ({
         },
       );
       await syncManager.loadMetadata();
+      // When loading the plugin we also load the metadata, though since by default
+      // configs sync is enabled we need to remove them if necessary. Otherwise they
+      // would be synced even if the user doesn't want them to be.
+      // We also add them if they want to sync config dirs just for completeness, though
+      // they should already be there.
+      if (stepData.sync.syncConfigDir) {
+        await syncManager.addConfigDirToMetadata();
+      } else {
+        await syncManager.removeConfigDirFromMetadata();
+      }
       try {
         await syncManager.firstSync();
       } catch (e) {
