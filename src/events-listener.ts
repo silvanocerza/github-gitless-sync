@@ -116,13 +116,24 @@ export default class EventsListener {
   }
 
   private isSyncable(filePath: string) {
-    return (
-      filePath === `${this.vault.configDir}/github-sync-metadata.json` ||
-      (this.settings.syncConfigDir &&
-        filePath.startsWith(this.vault.configDir)) ||
-      // Obsidian recommends not syncing the workspace files
+    if (filePath === `${this.vault.configDir}/github-sync-metadata.json`) {
+      // Manifest file must always be synced
+      return true;
+    } else if (
       filePath === `${this.vault.configDir}/workspace.json` ||
       filePath === `${this.vault.configDir}/workspace-mobile.json`
-    );
+    ) {
+      // Obsidian recommends not syncing the workspace files
+      return false;
+    } else if (
+      this.settings.syncConfigDir &&
+      filePath.startsWith(this.vault.configDir)
+    ) {
+      // Sync configs only if the user explicitly wants to
+      return true;
+    } else {
+      // All other files can be synced
+      return true;
+    }
   }
 }
