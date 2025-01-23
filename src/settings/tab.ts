@@ -214,5 +214,26 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
             }
           });
       });
+
+    containerEl.createEl("h2", { text: "Extra" });
+
+    new Setting(containerEl)
+      .setName("Enable logging")
+      .setDesc(
+        "If enabled logs from this plugin will be saved in a file in your config directory.",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.enableLogging)
+          .onChange((value) => {
+            this.plugin.settings.enableLogging = value;
+            if (value) {
+              this.plugin.logger.enable();
+            } else {
+              this.plugin.logger.disable();
+            }
+            this.plugin.saveSettings();
+          });
+      });
   }
 }

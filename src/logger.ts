@@ -3,12 +3,13 @@ import { Vault, normalizePath } from "obsidian";
 const LOG_FILE_NAME = "github-sync.log" as const;
 
 export default class Logger {
-  private enabled: boolean;
   private logFile: string;
 
-  constructor(private vault: Vault) {
+  constructor(
+    private vault: Vault,
+    private enabled: boolean,
+  ) {
     this.logFile = normalizePath(`${vault.configDir}/${LOG_FILE_NAME}`);
-    this.enabled = true;
   }
 
   private async write(

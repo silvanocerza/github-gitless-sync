@@ -29,9 +29,9 @@ export default class GitHubSyncPlugin extends Plugin {
   }
 
   async onload() {
-    this.logger = new Logger(this.app.vault);
-
     await this.loadSettings();
+
+    this.logger = new Logger(this.app.vault, this.settings.enableLogging);
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
 
