@@ -21,6 +21,8 @@ export default class GitHubSyncPlugin extends Plugin {
   async onUserEnable() {
     if (Platform.isMobile) {
       // TODO: Implement onboarding for mobile
+      this.settings.firstStart = false;
+      this.saveSettings();
       return;
     }
     if (this.settings.firstStart) {
