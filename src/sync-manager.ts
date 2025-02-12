@@ -767,7 +767,7 @@ export default class SyncManager {
       throw new Error("Sync interval is already running");
     }
     this.syncIntervalId = window.setInterval(
-      () => this.sync(),
+      async () => await this.sync(),
       // Sync interval is set in minutes but setInterval expects milliseconds
       minutes * 60 * 1000,
     );
