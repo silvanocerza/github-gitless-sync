@@ -24,6 +24,10 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
+    "@codemirror/lang-markdown": "^6.3.2",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.36.2",
+    "codemirror": "^6.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   }

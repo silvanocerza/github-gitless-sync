@@ -1,10 +1,14 @@
-import { EventRef, Plugin, Platform } from "obsidian";
+import { EventRef, Plugin, Platform, WorkspaceLeaf } from "obsidian";
 import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
 import GitHubSyncSettingsTab from "./settings/tab";
 import SyncManager from "./sync-manager";
 import { FileMetadata } from "./metadata-store";
 import { OnboardingDialog } from "./views/onboarding/view";
 import Logger from "./logger";
+import {
+  ConflictsResolutionView,
+  CONFLICTS_RESOLUTION_VIEW_TYPE,
+} from "./views/conflicts-resolution/view";
 
 export default class GitHubSyncPlugin extends Plugin {
   settings: GitHubSyncSettings;
@@ -30,9 +34,34 @@ export default class GitHubSyncPlugin extends Plugin {
     }
   }
 
+  async activateView() {
+    const { workspace } = this.app;
+    let leaf: WorkspaceLeaf | null = null;
+    const leaves = workspace.getLeavesOfType(CONFLICTS_RESOLUTION_VIEW_TYPE);
+    if (leaves.length > 0) {
+      leaf = leaves[0];
+    } else {
+      leaf = workspace.getRightLeaf(false);
+      await leaf.setViewState({
+        type: CONFLICTS_RESOLUTION_VIEW_TYPE,
+        active: true,
+      });
+    }
+    workspace.revealLeaf(leaf);
+  }
+
   async onload() {
     await this.loadSettings();
 
+    this.registerView(
+      CONFLICTS_RESOLUTION_VIEW_TYPE,
+      (leaf) => new ConflictsResolutionView(leaf, this),
+    );
+    this.addRibbonIcon(
+      "dice",
+      "Activate view",
+      async () => await this.activateView(),
+    );
     this.logger = new Logger(this.app.vault, this.settings.enableLogging);
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
