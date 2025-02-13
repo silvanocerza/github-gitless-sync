@@ -1,7 +1,8 @@
-import { setIcon } from "obsidian";
+import { App, setIcon } from "obsidian";
 import { useEffect, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { DiffResult } from "./diff";
+import { usePlugin } from "../hooks";
 
 interface DiffConnectionProps {
   differences: DiffResult[];
@@ -25,54 +26,81 @@ const DiffConnections: React.FC<DiffConnectionProps> = ({
   modifiedEditor,
 }) => {
   const [connections, setConnections] = useState<ConnectionChunk[]>([]);
+  const plugin = usePlugin();
+  if (!plugin) {
+    // Unlikely to happen, makes TS happy though
+    throw new Error("Plugin is not initialized");
+  }
 
   useEffect(() => {
     if (!originalEditor || !modifiedEditor) return;
 
-    requestAnimationFrame(() => {
-      const originalContainer =
-        originalEditor.scrollDOM.getBoundingClientRect();
-      const modifiedContainer =
-        modifiedEditor.scrollDOM.getBoundingClientRect();
+    const updateConnections = () => {
+      requestAnimationFrame(() => {
+        const originalContainer =
+          originalEditor.scrollDOM.getBoundingClientRect();
+        const modifiedContainer =
+          modifiedEditor.scrollDOM.getBoundingClientRect();
 
-      // Group consecutive diffs into chunks
-      const chunks: ConnectionChunk[] = [];
-      let currentChunk: DiffResult[] = [];
+        // Group consecutive diffs into chunks
+        const chunks: ConnectionChunk[] = [];
+        let currentChunk: DiffResult[] = [];
 
-      differences.forEach((diff, i) => {
-        if (diff.type === "equal") {
-          if (currentChunk.length > 0) {
-            // Process the chunk
-            const chunk = processChunk(
-              currentChunk,
-              originalEditor,
-              modifiedEditor,
-              originalContainer,
-              modifiedContainer,
-            );
-            if (chunk) chunks.push(chunk);
-            currentChunk = [];
+        differences.forEach((diff, i) => {
+          if (diff.type === "equal") {
+            if (currentChunk.length > 0) {
+              // Process the chunk
+              const chunk = processChunk(
+                currentChunk,
+                originalEditor,
+                modifiedEditor,
+                originalContainer,
+                modifiedContainer,
+              );
+              if (chunk) chunks.push(chunk);
+              currentChunk = [];
+            }
+          } else {
+            currentChunk.push(diff);
           }
-        } else {
-          currentChunk.push(diff);
+        });
+
+        // Process last chunk if exists
+        if (currentChunk.length > 0) {
+          const chunk = processChunk(
+            currentChunk,
+            originalEditor,
+            modifiedEditor,
+            originalContainer,
+            modifiedContainer,
+          );
+          if (chunk) chunks.push(chunk);
         }
+
+        setConnections(chunks);
       });
+    };
 
-      // Process last chunk if exists
-      if (currentChunk.length > 0) {
-        const chunk = processChunk(
-          currentChunk,
-          originalEditor,
-          modifiedEditor,
-          originalContainer,
-          modifiedContainer,
-        );
-        if (chunk) chunks.push(chunk);
-      }
+    // Initial update
+    updateConnections();
 
-      setConnections(chunks);
-    });
-  }, [differences, originalEditor, modifiedEditor]);
+    // Setup resize observer
+    const resizeObserver = new ResizeObserver(updateConnections);
+    resizeObserver.observe(originalEditor.scrollDOM);
+    resizeObserver.observe(modifiedEditor.scrollDOM);
+
+    // Listen to Obsidian layout changes
+    const layoutChangeHandler = () => {
+      updateConnections();
+    };
+    plugin.app.workspace.on("layout-change", layoutChangeHandler);
+
+    // Cleanup
+    return () => {
+      resizeObserver.disconnect();
+      plugin.app.workspace.off("layout-change", layoutChangeHandler);
+    };
+  }, [differences, originalEditor, modifiedEditor, plugin]);
 
   const processChunk = (
     chunk: DiffResult[],
@@ -229,44 +257,35 @@ const ConnectionButtons: React.FC<{
   chunk: ConnectionChunk;
   onAction: (action: "left" | "right") => void;
 }> = ({ chunk, onAction }) => {
-  const centerY =
-    (chunk.startTop + chunk.startBottom + chunk.endTop + chunk.endBottom) / 4;
-
   const showLeftArrow = chunk.type === "modify" || chunk.type === "add";
   const showRightArrow = chunk.type === "modify" || chunk.type === "remove";
 
   return (
-    <foreignObject x="0" y={centerY - 8} width="50" height="16">
-      <div
-        style={{
-          display: "flex",
-          justifyContent:
-            showLeftArrow && showRightArrow
-              ? "space-between"
-              : showLeftArrow
-                ? "flex-end"
-                : "flex-start",
-          width: "100%",
-          height: "100%",
-        }}
-      >
-        {showRightArrow && (
+    <>
+      {showRightArrow && (
+        <foreignObject x="0" y={chunk.startTop} width="16" height="16">
           <div
             style={{ cursor: "pointer", width: 16, height: 16 }}
             onClick={() => onAction("right")}
-            ref={(node) => node && setIcon(node, "arrow-right")}
+            ref={(node) => {
+              if (node) setIcon(node, "arrow-right");
+            }}
           />
-        )}
+        </foreignObject>
+      )}
 
-        {showLeftArrow && (
+      {showLeftArrow && (
+        <foreignObject x="34" y={chunk.endTop} width="16" height="16">
           <div
             style={{ cursor: "pointer", width: 16, height: 16 }}
             onClick={() => onAction("left")}
-            ref={(node) => node && setIcon(node, "arrow-left")}
+            ref={(node) => {
+              if (node) setIcon(node, "arrow-left");
+            }}
           />
-        )}
-      </div>
-    </foreignObject>
+        </foreignObject>
+      )}
+    </>
   );
 };
 

@@ -2,6 +2,7 @@ import { IconName, ItemView, WorkspaceLeaf } from "obsidian";
 import { Root, createRoot } from "react-dom/client";
 import DiffView from "./component";
 import GitHubSyncPlugin from "src/main";
+import { PluginContext } from "../hooks";
 
 export const CONFLICTS_RESOLUTION_VIEW_TYPE = "conflicts-resolution-view";
 
@@ -59,12 +60,13 @@ export class ConflictsResolutionView extends ItemView {
     container.empty();
     const root: Root = createRoot(container);
     root.render(
-      <DiffView
-        oldText={oldText1}
-        newText={newText1}
-        onResolve={(text) => console.log("Resolved:", text)}
-        // registerExtension={(ext) => this.plugin.registerEditorExtension(ext)}
-      />,
+      <PluginContext.Provider value={this.plugin}>
+        <DiffView
+          oldText={oldText1}
+          newText={newText1}
+          onResolve={(text) => console.log("Resolved:", text)}
+        />
+      </PluginContext.Provider>,
     );
   }
 
