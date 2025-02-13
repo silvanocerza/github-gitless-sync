@@ -62,7 +62,6 @@ export class ConflictsResolutionView extends ItemView {
       <DiffView
         oldText={oldText1}
         newText={newText1}
-        app={this.app}
         onResolve={(text) => console.log("Resolved:", text)}
         // registerExtension={(ext) => this.plugin.registerEditorExtension(ext)}
       />,

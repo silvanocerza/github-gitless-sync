@@ -24,26 +24,36 @@ export function createDiffHighlightPlugin(spec: DiffHighlightPluginSpec) {
         const decorations = [];
         const doc = view.state.doc;
 
-        // Go through the document line by line
         for (let i = 1; i <= doc.lines; i++) {
           const line = doc.line(i);
-          const lineText = line.text;
+          const diffResult = spec.diff.find((d) => {
+            if (spec.isOriginal) {
+              return (
+                d.oldValue === line.text ||
+                (d.type === "remove" && d.value === line.text)
+              );
+            } else {
+              return d.type !== "remove" && d.value === line.text;
+            }
+          });
 
-          // Find matching diff for this line
-          const diff = spec.diff.find((d) => d.value === lineText);
+          if (diffResult && diffResult.type !== "equal") {
+            let className = "";
+            if (diffResult.type === "modify") {
+              className = "diff-modify-background";
+            } else if (diffResult.type === "add" && !spec.isOriginal) {
+              className = "diff-add-background";
+            } else if (diffResult.type === "remove" && spec.isOriginal) {
+              className = "diff-remove-background";
+            }
 
-          if (
-            diff &&
-            ((spec.isOriginal && diff.type === "remove") ||
-              (!spec.isOriginal && diff.type === "add"))
-          ) {
-            decorations.push(
-              Decoration.mark({
-                class: spec.isOriginal
-                  ? "diff-remove-background"
-                  : "diff-add-background",
-              }).range(line.from, line.to),
-            );
+            if (className) {
+              decorations.push(
+                Decoration.line({
+                  class: className,
+                }).range(line.from),
+              );
+            }
           }
         }
 

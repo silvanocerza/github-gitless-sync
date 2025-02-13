@@ -1,69 +1,77 @@
-export type DiffResult = {
-  type: "add" | "remove" | "equal";
+type DiffType = "add" | "remove" | "modify" | "equal";
+
+export interface DiffResult {
+  type: DiffType;
   value: string;
+  oldValue?: string; // For modifications, store both values
+  newValue?: string;
   from: number;
   to: number;
-};
+}
 
-export default function diff(oldText: string, newText: string): DiffResult[] {
+function diff(oldText: string, newText: string): DiffResult[] {
   const oldLines = oldText.split("\n");
   const newLines = newText.split("\n");
-
-  const matrix = Array(oldLines.length + 1)
-    .fill(null)
-    .map(() => Array(newLines.length + 1).fill(0));
-
-  // Fill the matrix
-  for (let i = 1; i <= oldLines.length; i++) {
-    for (let j = 1; j <= newLines.length; j++) {
-      if (oldLines[i - 1] === newLines[j - 1]) {
-        matrix[i][j] = matrix[i - 1][j - 1] + 1;
-      } else {
-        matrix[i][j] = Math.max(matrix[i - 1][j], matrix[i][j - 1]);
-      }
-    }
-  }
-
-  // Backtrack to find differences
   const result: DiffResult[] = [];
-  let i = oldLines.length;
-  let j = newLines.length;
   let position = 0;
 
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      const value = oldLines[i - 1];
-      result.unshift({
-        type: "equal",
-        value,
-        from: position,
-        to: position + value.length,
-      });
-      position += value.length + 1; // +1 for newline
-      i--;
-      j--;
-    } else if (j > 0 && (i === 0 || matrix[i][j - 1] >= matrix[i - 1][j])) {
-      const value = newLines[j - 1];
-      result.unshift({
+  // First pass: find exact matches and obvious modifications
+  for (let i = 0; i < Math.max(oldLines.length, newLines.length); i++) {
+    const oldLine = oldLines[i];
+    const newLine = newLines[i];
+
+    if (!oldLine && newLine) {
+      // Pure addition
+      result.push({
         type: "add",
-        value,
+        value: newLine,
         from: position,
-        to: position + value.length,
+        to: position + newLine.length,
       });
-      position += value.length + 1;
-      j--;
-    } else if (i > 0 && (j === 0 || matrix[i][j - 1] < matrix[i - 1][j])) {
-      const value = oldLines[i - 1];
-      result.unshift({
+    } else if (oldLine && !newLine) {
+      // Pure removal
+      result.push({
         type: "remove",
-        value,
+        value: oldLine,
         from: position,
-        to: position + value.length,
+        to: position + oldLine.length,
       });
-      position += value.length + 1;
-      i--;
+    } else if (oldLine === newLine) {
+      // Exact match
+      result.push({
+        type: "equal",
+        value: oldLine,
+        from: position,
+        to: position + oldLine.length,
+      });
+    } else {
+      // Different content at same line number - treat as modification
+      result.push({
+        type: "modify",
+        value: newLine,
+        oldValue: oldLine,
+        newValue: newLine,
+        from: position,
+        to: position + Math.max(oldLine.length, newLine.length),
+      });
     }
+
+    position +=
+      Math.max(oldLine ? oldLine.length : 0, newLine ? newLine.length : 0) + 1;
   }
 
   return result;
 }
+
+function similarity(s1: string, s2: string): number {
+  if (s1 === s2) return 1.0;
+
+  // Simple word-based similarity
+  const words1 = s1.split(/\s+/);
+  const words2 = s2.split(/\s+/);
+
+  const commonWords = words1.filter((w) => words2.includes(w)).length;
+  return commonWords / Math.max(words1.length, words2.length);
+}
+
+export default diff;

@@ -1,19 +1,22 @@
-import { App } from "obsidian";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import diff from "./diff";
 import { createDiffHighlightPlugin } from "./diff-highlight-plugin";
+import DiffConnections from "./diff-connections";
 
 // Add styles for diff highlighting
 const styles = document.createElement("style");
 styles.innerHTML = `
-  .diff-remove-background {
-    background-color: rgba(var(--background-modifier-error-rgb), 0.1);
+  .diff-modify-background {
+    background-color: rgba(var(--color-yellow-rgb), 0.1);
   }
   .diff-add-background {
     background-color: rgba(var(--color-green-rgb), 0.1);
+  }
+  .diff-remove-background {
+    background-color: rgba(var(--color-red-rgb), 0.1);
   }
 `;
 document.head.appendChild(styles);
@@ -22,15 +25,14 @@ interface DiffViewProps {
   oldText: string;
   newText: string;
   onResolve: (resolvedText: string) => void;
-  app: App;
 }
 
-const DiffView: React.FC<DiffViewProps> = ({
-  oldText,
-  newText,
-  onResolve,
-  app,
-}) => {
+const DiffView: React.FC<DiffViewProps> = ({ oldText, newText, onResolve }) => {
+  const [originalEditorView, setOriginalEditorView] =
+    useState<EditorView | null>(null);
+  const [modifiedEditorView, setModifiedEditorView] =
+    useState<EditorView | null>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const editorViewsRef = useRef<EditorView[]>([]);
 
@@ -92,6 +94,12 @@ const DiffView: React.FC<DiffViewProps> = ({
         parent: container,
       });
 
+      if (isOriginal) {
+        setOriginalEditorView(view);
+      } else if (readOnly) {
+        setModifiedEditorView(view);
+      }
+
       editorViewsRef.current.push(view);
       return view;
     };
@@ -128,7 +136,7 @@ const DiffView: React.FC<DiffViewProps> = ({
       ref={containerRef}
       style={{
         display: "grid",
-        gridTemplateColumns: "1fr 1fr",
+        gridTemplateColumns: "1fr auto 1fr",
         gridTemplateRows: "1fr 1fr",
         gap: "10px",
         height: "100%",
@@ -136,17 +144,39 @@ const DiffView: React.FC<DiffViewProps> = ({
     >
       <div
         className="original-editor"
-        style={{ border: "1px solid var(--background-modifier-border)" }}
+        style={{
+          border: "1px solid var(--background-modifier-border)",
+          backgroundColor: "var(--background-primary)",
+        }}
       />
       <div
+        className="diff-overlay"
+        style={{
+          gridRow: "1 / 2",
+          gridColumn: "2 / 3",
+          position: "relative",
+          width: "50px",
+        }}
+      >
+        <DiffConnections
+          differences={diff(oldText, newText)}
+          originalEditor={originalEditorView}
+          modifiedEditor={modifiedEditorView}
+        />
+      </div>
+      <div
         className="modified-editor"
-        style={{ border: "1px solid var(--background-modifier-border)" }}
+        style={{
+          border: "1px solid var(--background-modifier-border)",
+          backgroundColor: "var(--background-primary)",
+        }}
       />
       <div
         className="result-editor"
         style={{
-          gridColumn: "1 / span 2",
+          gridColumn: "1 / 4",
           border: "1px solid var(--background-modifier-border)",
+          backgroundColor: "var(--background-primary)",
         }}
       />
     </div>
