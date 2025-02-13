@@ -21,27 +21,31 @@ export function createDiffHighlightPlugin(spec: DiffHighlightPluginSpec) {
       }
 
       buildDecorations(view: EditorView): DecorationSet {
-        const doc = view.state.doc.toString();
+        const decorations = [];
+        const doc = view.state.doc;
 
-        const decorations = spec.diff
-          .map((d) => {
-            if (
-              (spec.isOriginal && d.type === "remove") ||
-              (!spec.isOriginal && d.type === "add")
-            ) {
-              // Find the text position in the actual document
-              const pos = doc.indexOf(d.value);
-              if (pos !== -1) {
-                return Decoration.mark({
-                  class: spec.isOriginal
-                    ? "diff-remove-background"
-                    : "diff-add-background",
-                }).range(pos, pos + d.value.length);
-              }
-            }
-            return null;
-          })
-          .filter((d): d is NonNullable<typeof d> => d !== null);
+        // Go through the document line by line
+        for (let i = 1; i <= doc.lines; i++) {
+          const line = doc.line(i);
+          const lineText = line.text;
+
+          // Find matching diff for this line
+          const diff = spec.diff.find((d) => d.value === lineText);
+
+          if (
+            diff &&
+            ((spec.isOriginal && diff.type === "remove") ||
+              (!spec.isOriginal && diff.type === "add"))
+          ) {
+            decorations.push(
+              Decoration.mark({
+                class: spec.isOriginal
+                  ? "diff-remove-background"
+                  : "diff-add-background",
+              }).range(line.from, line.to),
+            );
+          }
+        }
 
         return Decoration.set(decorations, true);
       }

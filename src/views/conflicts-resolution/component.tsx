@@ -3,7 +3,6 @@ import { useEffect, useRef } from "react";
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
-import { basicSetup } from "codemirror";
 import diff from "./diff";
 import { createDiffHighlightPlugin } from "./diff-highlight-plugin";
 
@@ -11,10 +10,10 @@ import { createDiffHighlightPlugin } from "./diff-highlight-plugin";
 const styles = document.createElement("style");
 styles.innerHTML = `
   .diff-remove-background {
-    background-color: rgba(255, 0, 0, 0.1);
+    background-color: rgba(var(--background-modifier-error-rgb), 0.1);
   }
   .diff-add-background {
-    background-color: rgba(0, 255, 0, 0.1);
+    background-color: rgba(var(--color-green-rgb), 0.1);
   }
 `;
 document.head.appendChild(styles);
@@ -64,11 +63,26 @@ const DiffView: React.FC<DiffViewProps> = ({
       const state = EditorState.create({
         doc: content,
         extensions: [
-          basicSetup,
-          markdown(),
+          // basicSetup minus line numbers
           EditorView.lineWrapping,
           EditorView.editable.of(!readOnly),
           highlightPlugin,
+          EditorView.theme({
+            "&": {
+              backgroundColor: "var(--background-primary)",
+              color: "var(--text-normal)",
+            },
+            ".cm-line": {
+              padding: "0 4px",
+            },
+            "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
+              background: "var(--text-selection)",
+            },
+            "&.cm-focused .cm-cursor": {
+              borderLeftColor: "var(--text-normal)",
+            },
+          }),
+          markdown(),
           ...changeListener,
         ],
       });
