@@ -4,7 +4,7 @@ import { EditorState } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import diff from "./diff";
 import { createDiffHighlightPlugin } from "./diff-highlight-plugin";
-import DiffConnections from "./diff-connections";
+import DiffConnections, { ConnectionChunk } from "./diff-connections";
 
 // Add styles for diff highlighting
 const styles = document.createElement("style");
@@ -45,7 +45,7 @@ const DiffView: React.FC<DiffViewProps> = ({ oldText, newText, onResolve }) => {
       readOnly: boolean = false,
       isOriginal: boolean = false,
     ) => {
-      const differences = diff(oldText, newText);
+      const differences = diff(oldText || "", newText || "");
 
       const highlightPlugin = createDiffHighlightPlugin({
         diff: differences,
@@ -62,7 +62,7 @@ const DiffView: React.FC<DiffViewProps> = ({ oldText, newText, onResolve }) => {
           ]
         : [];
 
-      const state = EditorState.create({
+      const editorState = EditorState.create({
         doc: content,
         extensions: [
           // basicSetup minus line numbers
@@ -90,7 +90,7 @@ const DiffView: React.FC<DiffViewProps> = ({ oldText, newText, onResolve }) => {
       });
 
       const view = new EditorView({
-        state,
+        state: editorState,
         parent: container,
       });
 
@@ -131,6 +131,96 @@ const DiffView: React.FC<DiffViewProps> = ({ oldText, newText, onResolve }) => {
     };
   }, [oldText, newText]);
 
+  const handleMerge = (direction: "left" | "right", chunk: ConnectionChunk) => {
+    if (!originalEditorView || !modifiedEditorView) {
+      return;
+    }
+
+    const sourceEditor =
+      direction === "left" ? modifiedEditorView : originalEditorView;
+    const targetEditor =
+      direction === "left" ? originalEditorView : modifiedEditorView;
+
+    const sourceLine =
+      direction === "left" ? chunk.targetStartLine : chunk.startLine;
+    const sourceEndLine =
+      direction === "left" ? chunk.targetEndLine : chunk.endLine;
+    const targetLine =
+      direction === "left" ? chunk.startLine : chunk.targetStartLine;
+    const targetEndLine =
+      direction === "left" ? chunk.endLine : chunk.targetEndLine;
+
+    const sourceDoc = sourceEditor.state.doc;
+    const targetDoc = targetEditor.state.doc;
+
+    // Handle source content
+    let contentToInsert = "";
+    if (sourceLine > sourceDoc.lines) {
+      // Adding new lines at the end
+      contentToInsert = "\n" + chunk.content.join("\n");
+    } else {
+      const sourceFrom = sourceDoc.line(sourceLine).from;
+      const sourceTo =
+        sourceEndLine <= sourceDoc.lines
+          ? sourceDoc.line(sourceEndLine).to
+          : sourceDoc.length;
+      contentToInsert = sourceEditor.state.sliceDoc(sourceFrom, sourceTo);
+    }
+
+    // Handle target position
+    let targetFrom = 0;
+    let targetTo = 0;
+
+    if (targetLine > targetDoc.lines) {
+      // Appending to end of file
+      targetFrom = targetTo = targetDoc.length;
+      if (!contentToInsert.startsWith("\n") && targetDoc.length > 0) {
+        contentToInsert = "\n" + contentToInsert;
+      }
+    } else {
+      targetFrom = targetDoc.line(targetLine).from;
+      targetTo =
+        targetEndLine <= targetDoc.lines
+          ? targetDoc.line(targetEndLine).to
+          : targetDoc.length;
+    }
+
+    // Apply the change
+    const change = {
+      from: targetFrom,
+      to: targetTo,
+      insert: contentToInsert,
+    };
+
+    targetEditor.dispatch({ changes: change });
+
+    // Update result editor if it exists
+    // if (resultEditor) {
+    //   const resultDoc = resultEditor.state.doc;
+    //   let resultFrom = targetFrom;
+    //   let resultTo = targetTo;
+
+    //   // Handle case where result editor might have different content length
+    //   if (resultFrom > resultDoc.length) {
+    //     resultFrom = resultTo = resultDoc.length;
+    //     if (!contentToInsert.startsWith("\n") && resultDoc.length > 0) {
+    //       contentToInsert = "\n" + contentToInsert;
+    //     }
+    //   }
+
+    //   resultEditor.dispatch({
+    //     changes: {
+    //       from: resultFrom,
+    //       to: resultTo,
+    //       insert: contentToInsert,
+    //     },
+    //   });
+    // }
+
+    // Notify parent
+    onResolve(targetEditor.state.doc.toString());
+  };
+
   return (
     <div
       ref={containerRef}
@@ -162,6 +252,7 @@ const DiffView: React.FC<DiffViewProps> = ({ oldText, newText, onResolve }) => {
           differences={diff(oldText, newText)}
           originalEditor={originalEditorView}
           modifiedEditor={modifiedEditorView}
+          onMerge={handleMerge}
         />
       </div>
       <div

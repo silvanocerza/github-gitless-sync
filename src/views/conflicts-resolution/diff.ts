@@ -13,6 +13,7 @@ function diff(oldText: string, newText: string): DiffResult[] {
   const oldLines = oldText.split("\n");
   const newLines = newText.split("\n");
   const result: DiffResult[] = [];
+  // This is an index in oldText
   let position = 0;
 
   // First pass: find exact matches and obvious modifications
@@ -56,22 +57,12 @@ function diff(oldText: string, newText: string): DiffResult[] {
       });
     }
 
-    position +=
-      Math.max(oldLine ? oldLine.length : 0, newLine ? newLine.length : 0) + 1;
+    const oldLineLength = oldLine ? oldLine.length : 0;
+    const newLineLength = newLine ? newLine.length : 0;
+    position += Math.max(oldLineLength, newLineLength) + 1;
   }
 
   return result;
-}
-
-function similarity(s1: string, s2: string): number {
-  if (s1 === s2) return 1.0;
-
-  // Simple word-based similarity
-  const words1 = s1.split(/\s+/);
-  const words2 = s2.split(/\s+/);
-
-  const commonWords = words1.filter((w) => words2.includes(w)).length;
-  return commonWords / Math.max(words1.length, words2.length);
 }
 
 export default diff;

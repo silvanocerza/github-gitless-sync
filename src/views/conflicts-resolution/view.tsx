@@ -10,13 +10,15 @@ export const CONFLICTS_RESOLUTION_VIEW_TYPE = "conflicts-resolution-view";
 const oldText1 = `# My Document
 This is a test
 Some content here
+Some line
+Another line
 Final line`;
 
 const newText1 = `# My Document
 This is a modified test
 Some new content here
-Final line
-Added line`;
+Some line
+Final line`;
 
 // Test Case 2: Markdown with formatting
 const oldText2 = `# Title

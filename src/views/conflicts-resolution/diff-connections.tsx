@@ -1,4 +1,4 @@
-import { App, setIcon } from "obsidian";
+import { setIcon } from "obsidian";
 import { useEffect, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { DiffResult } from "./diff";
@@ -8,22 +8,31 @@ interface DiffConnectionProps {
   differences: DiffResult[];
   originalEditor: EditorView | null;
   modifiedEditor: EditorView | null;
+  onMerge: (from: "left" | "right", chunk: ConnectionChunk) => void;
 }
 
 type ConnectionType = "add" | "remove" | "modify";
 
-type ConnectionChunk = {
+export type ConnectionChunk = {
+  // For rendering
   startTop: number;
   startBottom: number;
   endTop: number;
   endBottom: number;
+  // For merging
+  startLine: number;
+  endLine: number;
+  targetStartLine: number;
+  targetEndLine: number;
   type: ConnectionType;
+  content: string[];
 };
 
 const DiffConnections: React.FC<DiffConnectionProps> = ({
   differences,
   originalEditor,
   modifiedEditor,
+  onMerge,
 }) => {
   const [connections, setConnections] = useState<ConnectionChunk[]>([]);
   const plugin = usePlugin();
@@ -33,7 +42,10 @@ const DiffConnections: React.FC<DiffConnectionProps> = ({
   }
 
   useEffect(() => {
-    if (!originalEditor || !modifiedEditor) return;
+    if (!originalEditor || !modifiedEditor) {
+      // Editors still not initialized
+      return;
+    }
 
     const updateConnections = () => {
       requestAnimationFrame(() => {
@@ -153,15 +165,90 @@ const DiffConnections: React.FC<DiffConnectionProps> = ({
       }
     }
 
-    return {
-      startTop: startTop === Infinity ? endTop : startTop,
-      startBottom: startBottom === -Infinity ? endBottom : startBottom,
-      endTop: endTop === Infinity ? startTop : endTop,
-      endBottom: endBottom === -Infinity ? startBottom : endBottom,
-      type: (chunk.some((d) => d.type === "modify")
-        ? "modify"
-        : chunk[0].type) as ConnectionType,
+    // Track actual content and line numbers
+    const firstDiff = chunk[0];
+    const lastDiff = chunk[chunk.length - 1];
+
+    // For original (left) content
+    const originalDoc = originalEditor.state.doc;
+    let startLine = 0;
+    let endLine = 0;
+    if (firstDiff.type === "remove" || firstDiff.type === "modify") {
+      for (let i = 1; i <= originalDoc.lines + 1; i++) {
+        if (i <= originalDoc.lines) {
+          const line = originalDoc.line(i);
+          const content = firstDiff.oldValue || firstDiff.value;
+          if (line.text === content) {
+            startLine = i;
+            break;
+          }
+        } else if (startLine === 0) {
+          // Content should be added at the end
+          startLine = originalDoc.lines + 1;
+        }
+      }
+
+      if (lastDiff.type === "remove" || lastDiff.type === "modify") {
+        endLine =
+          startLine +
+          chunk.filter((d) => d.type === "remove" || d.type === "modify")
+            .length -
+          1;
+      } else {
+        endLine = startLine;
+      }
+    }
+
+    // For modified (right) content
+    const modifiedDoc = modifiedEditor.state.doc;
+    let targetStartLine = 0;
+    let targetEndLine = 0;
+    if (firstDiff.type === "add" || firstDiff.type === "modify") {
+      for (let i = 1; i <= modifiedDoc.lines + 1; i++) {
+        if (i <= modifiedDoc.lines) {
+          const line = modifiedDoc.line(i);
+          if (line.text === firstDiff.value) {
+            targetStartLine = i;
+            break;
+          }
+        } else if (targetStartLine === 0) {
+          // Content should be added at the end
+          targetStartLine = modifiedDoc.lines + 1;
+        }
+      }
+
+      if (lastDiff.type === "add" || lastDiff.type === "modify") {
+        targetEndLine =
+          targetStartLine +
+          chunk.filter((d) => d.type === "add" || d.type === "modify").length -
+          1;
+      } else {
+        targetEndLine = targetStartLine;
+      }
+    }
+
+    // Collect the actual content
+    const content = chunk
+      .filter((d) => d.type === "add" || d.type === "modify")
+      .map((d) => d.value);
+
+    const res = {
+      startTop,
+      startBottom,
+      endTop,
+      endBottom,
+      startLine,
+      endLine,
+      targetStartLine,
+      targetEndLine,
+      type: chunk[0].type as ConnectionType,
+      content,
     };
+
+    console.log("ProcessChunk Result");
+    console.log(res);
+
+    return res;
   };
 
   return (
@@ -192,10 +279,7 @@ const DiffConnections: React.FC<DiffConnectionProps> = ({
             />
             <ConnectionButtons
               chunk={chunk}
-              onAction={(action) => {
-                console.log("Action:", action, "for chunk:", chunk);
-                // TODO: Implement actual resolution actions
-              }}
+              onAction={(direction) => onMerge(direction, chunk)}
             />
           </g>
         );
