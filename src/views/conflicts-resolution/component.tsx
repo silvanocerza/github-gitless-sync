@@ -4,7 +4,6 @@ import { EditorState } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import diff from "./diff";
 import { createDiffHighlightPlugin } from "./diff-highlight-plugin";
-import DiffConnections, { ConnectionChunk } from "./diff-connections";
 import EditorPane from "./editor-pane";
 import ActionsGutter from "./actions-gutter";
 import * as React from "react";
