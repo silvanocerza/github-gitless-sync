@@ -3,25 +3,26 @@ import { Root, createRoot } from "react-dom/client";
 import DiffView from "./component";
 import GitHubSyncPlugin from "src/main";
 import { PluginContext } from "../hooks";
+import * as React from "react";
 
 export const CONFLICTS_RESOLUTION_VIEW_TYPE = "conflicts-resolution-view";
 
 // Test Case 1: Simple line changes
-const oldText1 = `# My Document
+let oldText1 = `# My Document
 This is a test
 Some content here
 Some line
 Another line
 Final line`;
 
-const newText1 = `# My Document
+let newText1 = `# My Document
 This is a modified test
 Some new content here
 Some line
 Final line`;
 
 // Test Case 2: Markdown with formatting
-const oldText2 = `# Title
+let oldText2 = `# Title
 ## Subtitle
 - List item 1
 - List item 2
@@ -29,7 +30,7 @@ const oldText2 = `# Title
 **Bold text** and *italic* text
 Regular paragraph`;
 
-const newText2 = `# Modified Title
+let newText2 = `# Modified Title
 ## Subtitle
 - List item 1
 - List item 2
@@ -61,15 +62,22 @@ export class ConflictsResolutionView extends ItemView {
     const container = this.containerEl.children[1];
     container.empty();
     const root: Root = createRoot(container);
-    root.render(
-      <PluginContext.Provider value={this.plugin}>
-        <DiffView
-          oldText={oldText1}
-          newText={newText1}
-          onResolve={(text) => console.log("Resolved:", text)}
-        />
-      </PluginContext.Provider>,
-    );
+    const App = () => {
+      const [oldText, setOldText] = React.useState(oldText1);
+      const [newText, setNewText] = React.useState(newText1);
+
+      return (
+        <PluginContext.Provider value={this.plugin}>
+          <DiffView
+            oldText={oldText}
+            newText={newText}
+            onOldTextChange={setOldText}
+            onNewTextChange={setNewText}
+          />
+        </PluginContext.Provider>
+      );
+    };
+    root.render(<App />);
   }
 
   async onClose() {

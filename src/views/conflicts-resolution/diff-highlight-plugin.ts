@@ -3,11 +3,12 @@ import {
   Decoration,
   DecorationSet,
   EditorView,
+  ViewUpdate,
 } from "@codemirror/view";
-import { DiffResult } from "./diff";
+import { DiffChunk } from "./diff";
 
 interface DiffHighlightPluginSpec {
-  diff: DiffResult[];
+  diff: DiffChunk[];
   isOriginal: boolean;
 }
 
@@ -20,40 +21,47 @@ export function createDiffHighlightPlugin(spec: DiffHighlightPluginSpec) {
         this.decorations = this.buildDecorations(view);
       }
 
+      update(update: ViewUpdate) {
+        if (update.docChanged) {
+          this.decorations = this.buildDecorations(update.view);
+        }
+      }
+
       buildDecorations(view: EditorView): DecorationSet {
         const decorations = [];
         const doc = view.state.doc;
 
         for (let i = 1; i <= doc.lines; i++) {
           const line = doc.line(i);
-          const diffResult = spec.diff.find((d) => {
+
+          const diffResult = spec.diff.find((chunk) => {
             if (spec.isOriginal) {
               return (
-                d.oldValue === line.text ||
-                (d.type === "remove" && d.value === line.text)
+                (chunk.type === "remove" || chunk.type === "modify") &&
+                i >= chunk.startLeftLine &&
+                i < chunk.endLeftLine
               );
-            } else {
-              return d.type !== "remove" && d.value === line.text;
             }
+            return (
+              (chunk.type === "add" || chunk.type === "modify") &&
+              i >= chunk.startRightLine &&
+              i < chunk.endRightLine
+            );
           });
 
-          if (diffResult && diffResult.type !== "equal") {
-            let className = "";
-            if (diffResult.type === "modify") {
-              className = "diff-modify-background";
-            } else if (diffResult.type === "add" && !spec.isOriginal) {
-              className = "diff-add-background";
-            } else if (diffResult.type === "remove" && spec.isOriginal) {
-              className = "diff-remove-background";
-            }
+          if (diffResult) {
+            const className =
+              diffResult.type === "modify"
+                ? "diff-modify-background"
+                : diffResult.type === "add"
+                  ? "diff-add-background"
+                  : "diff-remove-background";
 
-            if (className) {
-              decorations.push(
-                Decoration.line({
-                  class: className,
-                }).range(line.from),
-              );
-            }
+            decorations.push(
+              Decoration.line({
+                class: className,
+              }).range(line.from),
+            );
           }
         }
 

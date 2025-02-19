@@ -1,68 +1,70 @@
-type DiffType = "add" | "remove" | "modify" | "equal";
-
-export interface DiffResult {
-  type: DiffType;
-  value: string;
-  oldValue?: string; // For modifications, store both values
-  newValue?: string;
-  from: number;
-  to: number;
+export interface DiffChunk {
+  type: "add" | "remove" | "modify";
+  startLeftLine: number;
+  endLeftLine: number;
+  startRightLine: number;
+  endRightLine: number;
 }
 
-function diff(oldText: string, newText: string): DiffResult[] {
+function diff(oldText: string, newText: string): DiffChunk[] {
   const oldLines = oldText.split("\n");
   const newLines = newText.split("\n");
-  const result: DiffResult[] = [];
-  // This is an index in oldText
-  let position = 0;
+  const result: DiffChunk[] = [];
 
-  // First pass: find exact matches and obvious modifications
   for (let i = 0; i < Math.max(oldLines.length, newLines.length); i++) {
     const oldLine = oldLines[i];
     const newLine = newLines[i];
 
     if (!oldLine && newLine) {
-      // Pure addition
       result.push({
         type: "add",
-        value: newLine,
-        from: position,
-        to: position + newLine.length,
+        startLeftLine: i + 1,
+        endLeftLine: i + 1,
+        startRightLine: i + 1,
+        endRightLine: i + 2,
       });
     } else if (oldLine && !newLine) {
-      // Pure removal
       result.push({
         type: "remove",
-        value: oldLine,
-        from: position,
-        to: position + oldLine.length,
+        startLeftLine: i + 1,
+        endLeftLine: i + 2,
+        startRightLine: i + 1,
+        endRightLine: i + 1,
       });
-    } else if (oldLine === newLine) {
-      // Exact match
-      result.push({
-        type: "equal",
-        value: oldLine,
-        from: position,
-        to: position + oldLine.length,
-      });
-    } else {
-      // Different content at same line number - treat as modification
+    } else if (oldLine !== newLine) {
       result.push({
         type: "modify",
-        value: newLine,
-        oldValue: oldLine,
-        newValue: newLine,
-        from: position,
-        to: position + Math.max(oldLine.length, newLine.length),
+        startLeftLine: i + 1,
+        endLeftLine: i + 2,
+        startRightLine: i + 1,
+        endRightLine: i + 2,
       });
     }
-
-    const oldLineLength = oldLine ? oldLine.length : 0;
-    const newLineLength = newLine ? newLine.length : 0;
-    position += Math.max(oldLineLength, newLineLength) + 1;
   }
+  // return result;
+  return mergeDiffs(result);
+}
 
-  return result;
+function mergeDiffs(chunks: DiffChunk[]): DiffChunk[] {
+  if (chunks.length <= 1) return chunks;
+
+  return chunks.reduce((merged: DiffChunk[], current) => {
+    const previous = merged[merged.length - 1];
+
+    if (
+      previous &&
+      (previous.endLeftLine === current.startLeftLine ||
+        previous.endRightLine === current.startRightLine)
+    ) {
+      previous.endLeftLine = current.endLeftLine;
+      previous.endRightLine = current.endRightLine;
+      previous.type = "modify";
+      return merged;
+    }
+
+    merged.push({ ...current });
+    return merged;
+  }, []);
 }
 
 export default diff;
