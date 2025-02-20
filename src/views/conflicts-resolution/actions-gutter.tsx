@@ -54,7 +54,7 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
       buttons = (
         <foreignObject
           x={actualWidth - 48}
-          y={topLeft + lineHeight / 2 - 12}
+          y={topRight + lineHeight / 2 - 12}
           width="48"
           height="24"
         >
@@ -94,25 +94,35 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
       buttons = (
         <foreignObject
           x={0}
-          y={topLeft + lineHeight / 2 - 12}
+          y={topLeft}
           width={actualWidth}
-          height="24"
+          height={bottomRight - topLeft + 24}
         >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "row",
-              justifyContent: "space-between",
-            }}
-          >
-            <ButtonRightArrow
-              tooltipText="Overwrite right lines"
-              onClick={() => onAcceptRight(chunk)}
-            />
-            <ButtonLeftArrow
-              tooltipText="Overwrite left lines"
-              onClick={() => onAcceptLeft(chunk)}
-            />
+          <div style={{ position: "relative", height: "100%" }}>
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                top: lineHeight / 2 - 12,
+              }}
+            >
+              <ButtonRightArrow
+                tooltipText="Overwrite right lines"
+                onClick={() => onAcceptRight(chunk)}
+              />
+            </div>
+            <div
+              style={{
+                position: "absolute",
+                right: 0,
+                top: topRight - topLeft + lineHeight / 2 - 12,
+              }}
+            >
+              <ButtonLeftArrow
+                tooltipText="Overwrite left lines"
+                onClick={() => onAcceptLeft(chunk)}
+              />
+            </div>
           </div>
         </foreignObject>
       );
