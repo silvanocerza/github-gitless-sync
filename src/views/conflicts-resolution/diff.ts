@@ -9,75 +9,85 @@ export interface DiffChunk {
 function diff(oldText: string, newText: string): DiffChunk[] {
   const oldLines = oldText.split("\n");
   const newLines = newText.split("\n");
+  const result: DiffChunk[] = [];
 
-  let matrix = Array(oldLines.length + 1)
-    .fill(null)
-    .map(() => Array(newLines.length + 1).fill(0));
+  let i = 0,
+    j = 0;
 
-  for (let i = 1; i <= oldLines.length; i++) matrix[i][0] = i;
-  for (let j = 1; j <= newLines.length; j++) matrix[0][j] = j;
+  while (i < oldLines.length || j < newLines.length) {
+    // Skip identical lines
+    while (
+      i < oldLines.length &&
+      j < newLines.length &&
+      oldLines[i] === newLines[j]
+    ) {
+      i++;
+      j++;
+    }
 
-  for (let i = 1; i <= oldLines.length; i++) {
-    for (let j = 1; j <= newLines.length; j++) {
-      if (oldLines[i - 1] === newLines[j - 1]) {
-        matrix[i][j] = matrix[i - 1][j - 1];
+    if (i < oldLines.length || j < newLines.length) {
+      let nextMatchOld = i;
+      let nextMatchNew = j;
+      let found = false;
+
+      // Look ahead for next match
+      for (let lookAhead = 1; lookAhead < 3; lookAhead++) {
+        if (
+          i + lookAhead < oldLines.length &&
+          newLines[j] === oldLines[i + lookAhead]
+        ) {
+          nextMatchOld = i + lookAhead;
+          nextMatchNew = j;
+          found = true;
+          break;
+        }
+        if (
+          j + lookAhead < newLines.length &&
+          oldLines[i] === newLines[j + lookAhead]
+        ) {
+          nextMatchOld = i;
+          nextMatchNew = j + lookAhead;
+          found = true;
+          break;
+        }
+      }
+
+      if (found) {
+        if (nextMatchOld > i) {
+          result.push({
+            type: "remove",
+            startLeftLine: i + 1,
+            endLeftLine: nextMatchOld + 1,
+            startRightLine: j + 1,
+            endRightLine: j + 1,
+          });
+        }
+        if (nextMatchNew > j) {
+          result.push({
+            type: "add",
+            startLeftLine: i + 1,
+            endLeftLine: i + 1,
+            startRightLine: j + 1,
+            endRightLine: nextMatchNew + 1,
+          });
+        }
+        i = nextMatchOld;
+        j = nextMatchNew;
       } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j] + 1, // deletion
-          matrix[i][j - 1] + 1, // insertion
-          matrix[i - 1][j - 1] + 1, // substitution
-        );
+        result.push({
+          type: "modify",
+          startLeftLine: i + 1,
+          endLeftLine: i + 2,
+          startRightLine: j + 1,
+          endRightLine: j + 2,
+        });
+        i++;
+        j++;
       }
     }
   }
 
-  const chunks: DiffChunk[] = [];
-  let i = oldLines.length;
-  let j = newLines.length;
-
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      i--;
-      j--;
-      continue;
-    }
-
-    const deletion = i > 0 ? matrix[i - 1][j] : Infinity;
-    const insertion = j > 0 ? matrix[i][j - 1] : Infinity;
-    const substitution = i > 0 && j > 0 ? matrix[i - 1][j - 1] : Infinity;
-
-    if (substitution <= deletion && substitution <= insertion) {
-      chunks.unshift({
-        type: "modify",
-        startLeftLine: i,
-        endLeftLine: i + 1,
-        startRightLine: j,
-        endRightLine: j + 1,
-      });
-      i--;
-      j--;
-    } else if (deletion <= insertion) {
-      chunks.unshift({
-        type: "remove",
-        startLeftLine: i,
-        endLeftLine: i + 1,
-        startRightLine: j + 1,
-        endRightLine: j + 1,
-      });
-      i--;
-    } else {
-      chunks.unshift({
-        type: "add",
-        startLeftLine: i + 1,
-        endLeftLine: i + 1,
-        startRightLine: j,
-        endRightLine: j + 1,
-      });
-      j--;
-    }
-  }
-
-  return mergeDiffs(chunks);
+  return mergeDiffs(result);
 }
 
 function mergeDiffs(chunks: DiffChunk[]): DiffChunk[] {
