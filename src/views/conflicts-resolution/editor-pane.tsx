@@ -55,10 +55,10 @@ const EditorPane: React.FC<EditorPaneProps> = (props) => {
       width={"100%"}
       basicSetup={false}
       extensions={extensions}
+      onChange={(value: string) => {
+        onContentChange(value);
+      }}
       onUpdate={(viewUpdate: ViewUpdate) => {
-        if (viewUpdate.docChanged) {
-          onContentChange(viewUpdate.state.doc.toString());
-        }
         // We want to know when it updates in case the line height changes
         onEditorUpdate?.(viewUpdate.view);
       }}
