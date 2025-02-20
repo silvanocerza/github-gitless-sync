@@ -132,11 +132,15 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
         <path
           d={`
           M 0 ${topLeft}
-          C ${actualWidth * 0.4} ${topLeft}, ${actualWidth * 0.6} ${topRight}, ${actualWidth} ${topRight}
+          L 48 ${topLeft}
+          C ${actualWidth * 0.4} ${topLeft}, ${actualWidth * 0.6} ${topRight}, ${actualWidth - 48} ${topRight}
+          L ${actualWidth} ${topRight}
           L ${actualWidth} ${bottomRight}
-          C ${actualWidth * 0.6} ${bottomRight}, ${actualWidth * 0.4} ${bottomLeft}, 0 ${bottomLeft}
+          L ${actualWidth - 48} ${bottomRight}
+          C ${actualWidth * 0.6} ${bottomRight}, ${actualWidth * 0.4} ${bottomLeft}, 48 ${bottomLeft}
+          L 0 ${bottomLeft}
           Z
-        `}
+          `}
           fill={color}
           fillOpacity="0.1"
           stroke={color}
