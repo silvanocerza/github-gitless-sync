@@ -42,61 +42,41 @@ const DiffView: React.FC<DiffViewProps> = ({
   const handleEditorReady = (editor: EditorView) => {
     setLineHeight(editor.defaultLineHeight);
   };
-
-  const [actualWidth, setActualWidth] = React.useState(0);
-  const containerRef = React.useRef<HTMLDivElement>(null);
-
-  const [leftWidth, setLeftWidth] = useState("33%");
-  const [gutterWidth, setGutterWidth] = useState("33%");
-  const [rightWidth, setRightWidth] = useState("33%");
-
-  React.useEffect(() => {
-    const resizeObserver = new ResizeObserver((entries) => {
-      const actualWidth = entries[0].contentRect.width;
-      setActualWidth(actualWidth);
-      setLeftWidth(`${actualWidth / 3}px`);
-      setGutterWidth(`${actualWidth / 3}px`);
-      setRightWidth(`${actualWidth / 3}px`);
-    });
-
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
-
-    return () => resizeObserver.disconnect();
-  }, []);
-
   const diffs = diff(oldText, newText);
 
   return (
     <div
-      ref={containerRef}
       style={{
         width: "100%",
-        display: "grid",
-        gridTemplateColumns: `${leftWidth} ${gutterWidth} ${rightWidth}`,
-        gridTemplateRows: "1fr",
-        gap: "0px",
+        height: "100%",
+        display: "flex",
+        overflow: "hidden",
       }}
     >
-      <EditorPane
-        content={oldText}
-        highlightPluginSpec={{
-          diff: diffs,
-          isOriginal: true,
-        }}
-        onEditorUpdate={handleEditorReady}
-        onContentChange={onOldTextChange}
-      />
-      <ActionsGutter diffChunks={diffs} lineHeight={lineHeight} />
-      <EditorPane
-        content={newText}
-        highlightPluginSpec={{
-          diff: diffs,
-          isOriginal: false,
-        }}
-        onContentChange={onNewTextChange}
-      />
+      <div style={{ flex: 1, overflow: "hidden" }}>
+        <EditorPane
+          content={oldText}
+          highlightPluginSpec={{
+            diff: diffs,
+            isOriginal: true,
+          }}
+          onEditorUpdate={handleEditorReady}
+          onContentChange={onOldTextChange}
+        />
+      </div>
+      <div style={{ minWidth: "160px", width: "auto" }}>
+        <ActionsGutter diffChunks={diffs} lineHeight={lineHeight} />
+      </div>
+      <div style={{ flex: 1, overflow: "hidden" }}>
+        <EditorPane
+          content={newText}
+          highlightPluginSpec={{
+            diff: diffs,
+            isOriginal: false,
+          }}
+          onContentChange={onNewTextChange}
+        />
+      </div>
     </div>
   );
 };
