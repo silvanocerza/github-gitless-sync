@@ -94,16 +94,19 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
       buttons = (
         <foreignObject
           x={0}
-          y={topLeft}
+          y={Math.min(topLeft, topRight)}
           width={actualWidth}
-          height={bottomRight - topLeft + 24}
+          height={
+            Math.max(bottomRight, bottomLeft) - Math.min(topLeft, topRight) + 24
+          }
         >
           <div style={{ position: "relative", height: "100%" }}>
             <div
               style={{
                 position: "absolute",
                 left: 0,
-                top: lineHeight / 2 - 12,
+                top:
+                  topLeft - Math.min(topLeft, topRight) + lineHeight / 2 - 12,
               }}
             >
               <ButtonRightArrow
@@ -115,7 +118,8 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
               style={{
                 position: "absolute",
                 right: 0,
-                top: topRight - topLeft + lineHeight / 2 - 12,
+                top:
+                  topRight - Math.min(topLeft, topRight) + lineHeight / 2 - 12,
               }}
             >
               <ButtonLeftArrow
