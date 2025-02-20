@@ -1,5 +1,10 @@
 import * as React from "react";
 import { DiffChunk } from "./diff";
+import {
+  ButtonCross,
+  ButtonLeftArrow,
+  ButtonRightArrow,
+} from "./action-button";
 
 interface ActionsGutterProps {
   diffChunks: DiffChunk[];
@@ -38,6 +43,90 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
         : chunk.type == "remove"
           ? "var(--color-red)"
           : "var(--color-yellow)";
+    let buttons: React.JSX.Element;
+    if (chunk.type === "add") {
+      buttons = (
+        <foreignObject
+          x={actualWidth - 48}
+          y={topLeft + lineHeight / 2 - 12}
+          width="48"
+          height="24"
+        >
+          <div style={{ display: "flex", flexDirection: "row" }}>
+            <ButtonCross
+              tooltipText="Delete lines"
+              onClick={() => {
+                console.log("CLICKED");
+              }}
+            />
+            <ButtonLeftArrow
+              tooltipText="Add lines"
+              onClick={() => {
+                console.log("CLICKED");
+              }}
+            />
+          </div>
+        </foreignObject>
+      );
+    } else if (chunk.type === "remove") {
+      buttons = (
+        <foreignObject
+          x={0}
+          y={topLeft + lineHeight / 2 - 12}
+          width="48"
+          height="24"
+        >
+          <div style={{ display: "flex", flexDirection: "row" }}>
+            <ButtonRightArrow
+              tooltipText="Add lines"
+              onClick={() => {
+                console.log("CLICKED");
+              }}
+            />
+            <ButtonCross
+              tooltipText="Delete lines"
+              onClick={() => {
+                console.log("CLICKED");
+              }}
+            />
+          </div>
+        </foreignObject>
+      );
+    } else if (chunk.type === "modify") {
+      buttons = (
+        <foreignObject
+          x={0}
+          y={topLeft + lineHeight / 2 - 12}
+          width={actualWidth}
+          height="24"
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              justifyContent: "space-between",
+            }}
+          >
+            <ButtonRightArrow
+              tooltipText="Overwrite right lines"
+              onClick={() => {
+                console.log("CLICKED");
+              }}
+            />
+            <ButtonLeftArrow
+              tooltipText="Overwrite left lines"
+              onClick={() => {
+                console.log("CLICKED");
+              }}
+            />
+          </div>
+        </foreignObject>
+      );
+    } else {
+      // Just in case we add other types in the future
+      throw Error("Unknown chunk type");
+    }
+
     return (
       <g key={index}>
         <path
@@ -53,6 +142,15 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
           stroke={color}
           strokeWidth="1"
         />
+        {buttons}
+        {/* <foreignObject
+          x={0}
+          y={topLeft + lineHeight / 2 - 12}
+          width="48"
+          height="24"
+        >
+          <div style={{ display: "flex", flexDirection: "row" }}></div>
+        </foreignObject> */}
       </g>
     );
   };
