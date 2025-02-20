@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { EditorView } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
-import diff from "./diff";
+import diff, { DiffChunk } from "./diff";
 import { createDiffHighlightPlugin } from "./diff-highlight-plugin";
 import EditorPane from "./editor-pane";
 import ActionsGutter from "./actions-gutter";
@@ -65,7 +65,73 @@ const DiffView: React.FC<DiffViewProps> = ({
         />
       </div>
       <div style={{ minWidth: "160px", width: "auto" }}>
-        <ActionsGutter diffChunks={diffs} lineHeight={lineHeight} />
+        <ActionsGutter
+          diffChunks={diffs}
+          lineHeight={lineHeight}
+          onAcceptLeft={(chunk: DiffChunk) => {
+            if (chunk.type === "add") {
+              const oldLines = oldText.split("\n");
+              oldLines.splice(
+                chunk.startLeftLine - 1,
+                0,
+                ...newText
+                  .split("\n")
+                  .slice(chunk.startRightLine - 1, chunk.endRightLine - 1),
+              );
+              onOldTextChange(oldLines.join("\n"));
+            } else if (chunk.type === "modify") {
+              const oldLines = oldText.split("\n");
+              oldLines.splice(
+                chunk.startLeftLine - 1,
+                chunk.endLeftLine - chunk.startLeftLine,
+                ...newText
+                  .split("\n")
+                  .slice(chunk.startRightLine - 1, chunk.endRightLine - 1),
+              );
+              onOldTextChange(oldLines.join("\n"));
+            }
+          }}
+          onAcceptRight={(chunk: DiffChunk) => {
+            if (chunk.type === "remove") {
+              const newLines = newText.split("\n");
+              newLines.splice(
+                chunk.startRightLine - 1,
+                0,
+                ...oldText
+                  .split("\n")
+                  .slice(chunk.startLeftLine - 1, chunk.endLeftLine - 1),
+              );
+              onNewTextChange(newLines.join("\n"));
+            } else if (chunk.type === "modify") {
+              const newLines = newText.split("\n");
+              newLines.splice(
+                chunk.startRightLine - 1,
+                chunk.endRightLine - chunk.startRightLine,
+                ...oldText
+                  .split("\n")
+                  .slice(chunk.startLeftLine - 1, chunk.endLeftLine - 1),
+              );
+              onNewTextChange(newLines.join("\n"));
+            }
+          }}
+          onReject={(chunk: DiffChunk) => {
+            if (chunk.type === "add") {
+              const newLines = newText.split("\n");
+              newLines.splice(
+                chunk.startRightLine - 1,
+                chunk.endRightLine - chunk.startRightLine,
+              );
+              onNewTextChange(newLines.join("\n"));
+            } else if (chunk.type === "remove") {
+              const oldLines = oldText.split("\n");
+              oldLines.splice(
+                chunk.startLeftLine - 1,
+                chunk.endLeftLine - chunk.startLeftLine,
+              );
+              onOldTextChange(oldLines.join("\n"));
+            }
+          }}
+        />
       </div>
       <div style={{ flex: 1, overflow: "hidden" }}>
         <EditorPane

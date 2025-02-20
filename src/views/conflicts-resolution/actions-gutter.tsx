@@ -11,11 +11,17 @@ interface ActionsGutterProps {
   // This is essential to correctly draw the lines between
   // the left and right editor
   lineHeight: number;
+  onAcceptLeft: (chunk: DiffChunk) => void;
+  onAcceptRight: (chunk: DiffChunk) => void;
+  onReject: (chunk: DiffChunk) => void;
 }
 
 const ActionsGutter: React.FC<ActionsGutterProps> = ({
   diffChunks,
   lineHeight,
+  onAcceptLeft,
+  onAcceptRight,
+  onReject,
 }) => {
   const [actualWidth, setActualWidth] = React.useState(0);
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -55,15 +61,11 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
           <div style={{ display: "flex", flexDirection: "row" }}>
             <ButtonCross
               tooltipText="Delete lines"
-              onClick={() => {
-                console.log("CLICKED");
-              }}
+              onClick={() => onReject(chunk)}
             />
             <ButtonLeftArrow
               tooltipText="Add lines"
-              onClick={() => {
-                console.log("CLICKED");
-              }}
+              onClick={() => onAcceptLeft(chunk)}
             />
           </div>
         </foreignObject>
@@ -79,15 +81,11 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
           <div style={{ display: "flex", flexDirection: "row" }}>
             <ButtonRightArrow
               tooltipText="Add lines"
-              onClick={() => {
-                console.log("CLICKED");
-              }}
+              onClick={() => onAcceptRight(chunk)}
             />
             <ButtonCross
               tooltipText="Delete lines"
-              onClick={() => {
-                console.log("CLICKED");
-              }}
+              onClick={() => onReject(chunk)}
             />
           </div>
         </foreignObject>
@@ -109,15 +107,11 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
           >
             <ButtonRightArrow
               tooltipText="Overwrite right lines"
-              onClick={() => {
-                console.log("CLICKED");
-              }}
+              onClick={() => onAcceptRight(chunk)}
             />
             <ButtonLeftArrow
               tooltipText="Overwrite left lines"
-              onClick={() => {
-                console.log("CLICKED");
-              }}
+              onClick={() => onAcceptLeft(chunk)}
             />
           </div>
         </foreignObject>
