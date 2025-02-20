@@ -6,14 +6,27 @@ interface ActionsGutterProps {
   // This is essential to correctly draw the lines between
   // the left and right editor
   lineHeight: number;
-  width: number;
 }
 
 const ActionsGutter: React.FC<ActionsGutterProps> = ({
   diffChunks,
   lineHeight,
-  width,
 }) => {
+  const [actualWidth, setActualWidth] = React.useState(0);
+  const containerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const resizeObserver = new ResizeObserver((entries) => {
+      setActualWidth(entries[0].contentRect.width);
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, []);
+
   const drawChunk = (chunk: DiffChunk, index: number) => {
     const topLeft = (chunk.startLeftLine - 1) * lineHeight;
     const bottomLeft = (chunk.endLeftLine - 1) * lineHeight;
@@ -30,9 +43,9 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
         <path
           d={`
           M 0 ${topLeft}
-          C ${width * 0.4} ${topLeft}, ${width * 0.6} ${topRight}, ${width} ${topRight}
-          L ${width} ${bottomRight}
-          C ${width * 0.6} ${bottomRight}, ${width * 0.4} ${bottomLeft}, 0 ${bottomLeft}
+          C ${actualWidth * 0.4} ${topLeft}, ${actualWidth * 0.6} ${topRight}, ${actualWidth} ${topRight}
+          L ${actualWidth} ${bottomRight}
+          C ${actualWidth * 0.6} ${bottomRight}, ${actualWidth * 0.4} ${bottomLeft}, 0 ${bottomLeft}
           Z
         `}
           fill={color}
@@ -45,7 +58,7 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
   };
 
   return (
-    <div style={{ width: width }}>
+    <div ref={containerRef} style={{ width: "100%" }}>
       <svg
         style={{
           width: "100%",

@@ -14,45 +14,45 @@ interface EditorPaneProps {
   onContentChange: (content: string) => void;
 }
 
-const EditorPane: React.FC<EditorPaneProps> = ({
-  content,
-  highlightPluginSpec,
-  onEditorUpdate,
-  onContentChange,
-}) => {
-  const extensions = [
-    // basicSetup minus line numbers
-    // EditorView.lineWrapping,
-    EditorView.editable.of(true),
-    createDiffHighlightPlugin(highlightPluginSpec),
-    EditorView.theme({
-      "&": {
-        backgroundColor: "var(--background-primary)",
-        color: "var(--text-normal)",
-      },
-      ".cm-content": {
-        padding: 0,
-        caretColor: "var(--caret-color)",
-        fontSize: "var(--font-text-size)",
-        fontFamily: "var(--font-text)",
-      },
-      "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-        background: "var(--text-selection)",
-      },
-      "&.cm-focused": {
-        outline: 0,
-      },
-      "&.cm-focused .cm-cursor": {
-        borderLeftColor: "var(--text-normal)",
-      },
-    }),
-    markdown(),
-  ];
+const EditorPane: React.FC<EditorPaneProps> = (props) => {
+  const { content, highlightPluginSpec, onEditorUpdate, onContentChange } =
+    props;
+  const extensions = React.useMemo(() => {
+    return [
+      // basicSetup minus line numbers
+      // EditorView.lineWrapping,
+      EditorView.editable.of(true),
+      createDiffHighlightPlugin(highlightPluginSpec),
+      EditorView.theme({
+        "&": {
+          backgroundColor: "var(--background-primary)",
+          color: "var(--text-normal)",
+        },
+        ".cm-content": {
+          padding: 0,
+          caretColor: "var(--caret-color)",
+          fontSize: "var(--font-text-size)",
+          fontFamily: "var(--font-text)",
+        },
+        "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
+          background: "var(--text-selection)",
+        },
+        "&.cm-focused": {
+          outline: 0,
+        },
+        "&.cm-focused .cm-cursor": {
+          borderLeftColor: "var(--text-normal)",
+        },
+      }),
+      markdown(),
+    ];
+  }, [highlightPluginSpec]);
 
   return (
     <CodeMirror
       value={content}
       theme={"none"}
+      width={"100%"}
       basicSetup={false}
       extensions={extensions}
       onUpdate={(viewUpdate: ViewUpdate) => {
