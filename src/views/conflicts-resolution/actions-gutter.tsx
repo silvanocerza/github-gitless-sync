@@ -147,14 +147,6 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
           strokeWidth="1"
         />
         {buttons}
-        {/* <foreignObject
-          x={0}
-          y={topLeft + lineHeight / 2 - 12}
-          width="48"
-          height="24"
-        >
-          <div style={{ display: "flex", flexDirection: "row" }}></div>
-        </foreignObject> */}
       </g>
     );
   };
