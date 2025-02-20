@@ -87,7 +87,21 @@ function diff(oldText: string, newText: string): DiffChunk[] {
     }
   }
 
-  return mergeDiffs(result);
+  return mergeDiffs(
+    result.map((chunk) => ({
+      ...chunk,
+      startLeftLine: clampLine(chunk.startLeftLine, oldLines.length),
+      endLeftLine: clampLine(chunk.endLeftLine, oldLines.length),
+      startRightLine: clampLine(chunk.startRightLine, newLines.length),
+      endRightLine: clampLine(chunk.endRightLine, newLines.length),
+    })),
+  );
+}
+
+// Use to make sure the line number in the diff chunk doesn't exceed
+// the number of lines of the document.
+function clampLine(line: number, maxLines: number): number {
+  return Math.min(Math.max(1, line), maxLines + 1);
 }
 
 function mergeDiffs(chunks: DiffChunk[]): DiffChunk[] {
