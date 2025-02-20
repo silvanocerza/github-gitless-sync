@@ -61,10 +61,10 @@ const DiffView: React.FC<DiffViewProps> = ({
       <div>
         <EditorPane
           content={oldText}
-          highlightPlugin={createDiffHighlightPlugin({
+          highlightPluginSpec={{
             diff: diffs,
             isOriginal: true,
-          })}
+          }}
           onEditorUpdate={handleEditorReady}
           onContentChange={onOldTextChange}
         />
@@ -79,10 +79,10 @@ const DiffView: React.FC<DiffViewProps> = ({
       <div>
         <EditorPane
           content={newText}
-          highlightPlugin={createDiffHighlightPlugin({
+          highlightPluginSpec={{
             diff: diffs,
             isOriginal: false,
-          })}
+          }}
           onContentChange={onNewTextChange}
         />
       </div>

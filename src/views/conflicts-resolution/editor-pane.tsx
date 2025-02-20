@@ -1,71 +1,69 @@
 import { markdown } from "@codemirror/lang-markdown";
-import { EditorState, StateEffect } from "@codemirror/state";
-import { EditorView, ViewPlugin } from "@codemirror/view";
+import { EditorView, ViewUpdate } from "@codemirror/view";
 import * as React from "react";
+import {
+  DiffHighlightPluginSpec,
+  createDiffHighlightPlugin,
+} from "./diff-highlight-plugin";
+import CodeMirror from "@uiw/react-codemirror";
 
 interface EditorPaneProps {
   content: string;
-  highlightPlugin: ViewPlugin<any>;
+  highlightPluginSpec: DiffHighlightPluginSpec;
   onEditorUpdate?: (editor: EditorView) => void;
   onContentChange: (content: string) => void;
 }
 
 const EditorPane: React.FC<EditorPaneProps> = ({
   content,
-  highlightPlugin,
+  highlightPluginSpec,
   onEditorUpdate,
   onContentChange,
 }) => {
-  const editorRef = React.useRef<HTMLDivElement>(null);
+  const extensions = [
+    // basicSetup minus line numbers
+    // EditorView.lineWrapping,
+    EditorView.editable.of(true),
+    createDiffHighlightPlugin(highlightPluginSpec),
+    EditorView.theme({
+      "&": {
+        backgroundColor: "var(--background-primary)",
+        color: "var(--text-normal)",
+      },
+      ".cm-content": {
+        padding: 0,
+        caretColor: "var(--caret-color)",
+        fontSize: "var(--font-text-size)",
+        fontFamily: "var(--font-text)",
+      },
+      "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
+        background: "var(--text-selection)",
+      },
+      "&.cm-focused": {
+        outline: 0,
+      },
+      "&.cm-focused .cm-cursor": {
+        borderLeftColor: "var(--text-normal)",
+      },
+    }),
+    markdown(),
+  ];
 
-  React.useEffect(() => {
-    if (editorRef.current) {
-      const editorState = EditorState.create({
-        doc: content,
-        extensions: [
-          // basicSetup minus line numbers
-          // EditorView.lineWrapping,
-          EditorView.editable.of(true),
-          highlightPlugin,
-          EditorView.theme({
-            "&": {
-              backgroundColor: "var(--background-primary)",
-              color: "var(--text-normal)",
-            },
-            ".cm-content": {
-              padding: 0,
-            },
-            "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-              background: "var(--text-selection)",
-            },
-            "&.cm-focused .cm-cursor": {
-              borderLeftColor: "var(--text-normal)",
-            },
-          }),
-          markdown(),
-          EditorView.updateListener.of((update) => {
-            if (update.docChanged) {
-              onContentChange(update.state.doc.toString());
-            }
-            // We want to know when it updates in case the line height changes
-            onEditorUpdate?.(update.view);
-          }),
-        ],
-      });
-
-      const editor = new EditorView({
-        parent: editorRef.current,
-        state: editorState,
-      });
-
-      return () => {
-        // Cleanup
-        editor.destroy();
-      };
-    }
-  }, []);
-
-  return <div ref={editorRef} />;
+  return (
+    <CodeMirror
+      value={content}
+      theme={"none"}
+      basicSetup={false}
+      extensions={extensions}
+      onUpdate={(viewUpdate: ViewUpdate) => {
+        if (viewUpdate.docChanged) {
+          onContentChange(viewUpdate.state.doc.toString());
+        }
+        // We want to know when it updates in case the line height changes
+        onEditorUpdate?.(viewUpdate.view);
+      }}
+    />
+  );
 };
 
 export default EditorPane;

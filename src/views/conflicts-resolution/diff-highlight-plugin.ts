@@ -7,7 +7,7 @@ import {
 } from "@codemirror/view";
 import { DiffChunk } from "./diff";
 
-interface DiffHighlightPluginSpec {
+export interface DiffHighlightPluginSpec {
   diff: DiffChunk[];
   isOriginal: boolean;
 }
@@ -19,12 +19,6 @@ export function createDiffHighlightPlugin(spec: DiffHighlightPluginSpec) {
 
       constructor(view: EditorView) {
         this.decorations = this.buildDecorations(view);
-      }
-
-      update(update: ViewUpdate) {
-        if (update.docChanged) {
-          this.decorations = this.buildDecorations(update.view);
-        }
       }
 
       buildDecorations(view: EditorView): DecorationSet {
