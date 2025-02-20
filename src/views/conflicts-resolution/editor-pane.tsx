@@ -51,8 +51,12 @@ const EditorPane: React.FC<EditorPaneProps> = (props) => {
   return (
     <CodeMirror
       value={content}
+      style={{
+        height: "100%",
+      }}
       theme={"none"}
       width={"100%"}
+      height={"100%"}
       basicSetup={false}
       extensions={extensions}
       onChange={(value: string) => {
