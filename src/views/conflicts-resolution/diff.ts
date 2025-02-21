@@ -87,10 +87,8 @@ function diff(oldText: string, newText: string): DiffChunk[] {
     }
   }
 
-  return mergeDiffs(
-    result.map((chunk) =>
-      clampChunkLines(chunk, oldLines.length, newLines.length),
-    ),
+  return mergeDiffs(result).map((chunk) =>
+    clampChunkLines(chunk, oldLines.length, newLines.length),
   );
 }
 
