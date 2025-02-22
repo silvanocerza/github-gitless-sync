@@ -22,8 +22,9 @@ const FilesTabBar: React.FC<FilesTabBarProps> = ({ files, onTabChange }) => {
   const createTab = (filename: string) => {
     return (
       <div
+        key={filename}
         className={`workspace-tab-header tappable ${filename === currentFile ? "is-active mod-active" : ""}`}
-        aria-label={`${filename}`}
+        aria-label={filename}
         data-tooltip-delay="300"
         onClick={() => onTabClick(filename)}
       >
