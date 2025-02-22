@@ -70,6 +70,12 @@ Final line
 
 asdfasdf`;
 
+interface ConflictFile {
+  filename: string;
+  remoteContent: string;
+  localContent: string;
+}
+
 export class ConflictsResolutionView extends ItemView {
   icon: IconName = "merge";
 
@@ -93,11 +99,16 @@ export class ConflictsResolutionView extends ItemView {
     container.empty();
     // We don't want any padding, the DiffView component will handle that
     (container as HTMLElement).style.padding = "0";
+    const files: ConflictFile[] = [
+      { filename: "this", remoteContent: oldText1, localContent: newText1 },
+      { filename: "that", remoteContent: oldText2, localContent: newText2 },
+      { filename: "those", remoteContent: oldText3, localContent: newText3 },
+    ];
     const root: Root = createRoot(container);
-    const App = () => {
-      const [oldText, setOldText] = React.useState(oldText3);
-      const [newText, setNewText] = React.useState(newText3);
-
+    const App = ({ initialFiles }: { initialFiles: ConflictFile[] }) => {
+      const [files, setFiles] = React.useState(initialFiles);
+      const [currentFileIndex, setCurrentFileIndex] = React.useState(0);
+      const currentFile = files.at(currentFileIndex);
       return (
         <React.StrictMode>
           <div
@@ -108,22 +119,31 @@ export class ConflictsResolutionView extends ItemView {
             }}
           >
             <FilesTabBar
-              files={["this", "that", "those"]}
-              onTabChange={(filename: string) =>
-                console.log(`Clicked ${filename}`)
-              }
+              files={files.map((f) => f.filename)}
+              currentFile={currentFile?.filename || ""}
+              setCurrentFileIndex={setCurrentFileIndex}
             />
             <DiffView
-              oldText={oldText}
-              newText={newText}
-              onOldTextChange={setOldText}
-              onNewTextChange={setNewText}
+              oldText={currentFile?.remoteContent || ""}
+              newText={currentFile?.localContent || ""}
+              onOldTextChange={(content: string) => {
+                const tempFiles = [...files];
+                tempFiles[currentFileIndex].remoteContent = content;
+                setFiles(tempFiles);
+                // currentFile.remoteContent = content;
+              }}
+              onNewTextChange={(content: string) => {
+                const tempFiles = [...files];
+                tempFiles[currentFileIndex].localContent = content;
+                setFiles(tempFiles);
+                // currentFile.localContent = content;
+              }}
             />
           </div>
         </React.StrictMode>
       );
     };
-    root.render(<App />);
+    root.render(<App initialFiles={files} />);
   }
 
   async onClose() {

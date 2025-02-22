@@ -3,30 +3,23 @@ import * as React from "react";
 
 interface FilesTabBarProps {
   files: string[];
-  onTabChange: (filename: string) => void;
+  currentFile: string;
+  setCurrentFileIndex: (index: number) => void;
 }
 
-const FilesTabBar: React.FC<FilesTabBarProps> = ({ files, onTabChange }) => {
-  const [currentFile, setCurrentFile] = React.useState<string>(
-    files.at(0) || "",
-  );
-
-  const onTabClick = (filename: string) => {
-    if (filename === currentFile) {
-      return;
-    }
-    setCurrentFile(filename);
-    onTabChange(filename);
-  };
-
-  const createTab = (filename: string) => {
+const FilesTabBar: React.FC<FilesTabBarProps> = ({
+  files,
+  currentFile,
+  setCurrentFileIndex: setCurrentFile,
+}) => {
+  const createTab = (filename: string, index: number) => {
     return (
       <div
         key={filename}
         className={`workspace-tab-header tappable ${filename === currentFile ? "is-active mod-active" : ""}`}
         aria-label={filename}
         data-tooltip-delay="300"
-        onClick={() => onTabClick(filename)}
+        onClick={() => setCurrentFile(index)}
       >
         <div className="workspace-tab-header-inner">
           <div>{filename}</div>
@@ -78,9 +71,9 @@ const FilesTabBar: React.FC<FilesTabBarProps> = ({ files, onTabChange }) => {
         }}
         onClick={() => {
           const menu = new Menu();
-          files.forEach((filename: string) => {
+          files.forEach((filename: string, index: number) => {
             menu.addItem((item) => {
-              item.setTitle(filename).onClick(() => onTabClick(filename));
+              item.setTitle(filename).onClick(() => setCurrentFile(index));
             });
           });
           // We use the divRef to force the position to be relative to this div. We want the position
