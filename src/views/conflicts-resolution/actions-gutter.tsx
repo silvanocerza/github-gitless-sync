@@ -170,16 +170,28 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
   };
 
   return (
-    <div ref={containerRef} style={{ width: "100%" }}>
+    <div
+      ref={containerRef}
+      style={{
+        width: "100%",
+        height: "100%",
+        overflow: "hidden",
+        position: "relative",
+      }}
+    >
       <svg
         style={{
           width: "100%",
           height: "100%",
           position: "absolute",
-          overflow: "visible",
         }}
       >
-        {diffChunks.map(drawChunk)}
+        <defs>
+          <clipPath id="gutter-clip">
+            <rect x="0" y="0" width="100%" height="100%" />
+          </clipPath>
+        </defs>
+        <g clipPath="url(#gutter-clip)">{diffChunks.map(drawChunk)}</g>
       </svg>
     </div>
   );
