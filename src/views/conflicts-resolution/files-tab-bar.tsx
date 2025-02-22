@@ -1,0 +1,115 @@
+import { Menu } from "obsidian";
+import * as React from "react";
+
+interface FilesTabBarProps {
+  files: string[];
+  onTabChange: (filename: string) => void;
+}
+
+const FilesTabBar: React.FC<FilesTabBarProps> = ({ files, onTabChange }) => {
+  const [currentFile, setCurrentFile] = React.useState<string>(
+    files.at(0) || "",
+  );
+
+  const onTabClick = (filename: string) => {
+    if (filename === currentFile) {
+      return;
+    }
+    setCurrentFile(filename);
+    onTabChange(filename);
+  };
+
+  const createTab = (filename: string) => {
+    return (
+      <div
+        className={`workspace-tab-header tappable ${filename === currentFile ? "is-active mod-active" : ""}`}
+        aria-label={`${filename}`}
+        data-tooltip-delay="300"
+        onClick={() => onTabClick(filename)}
+      >
+        <div className="workspace-tab-header-inner">
+          <div>{filename}</div>
+        </div>
+      </div>
+    );
+  };
+
+  // Makes it easier to position the tab bar menu
+  const divRef = React.useRef<HTMLDivElement>(null);
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        backgroundColor: "var(--tab-container-background)",
+        height: "var(--header-height)",
+        borderBottom: "var(--tab-outline-width) solid var(--tab-outline-color)",
+        flex: "0 0 auto",
+        paddingLeft: "var(--size-4-2)",
+        paddingRight: "var(--size-4-2)",
+        position: "relative",
+      }}
+    >
+      <div
+        style={{
+          animationDuration: "250ms",
+          display: "flex",
+          flex: "0 1 auto",
+          overflow: "auto",
+          padding: "1px 0 7px",
+          margin: "6px 0 0 0",
+          gap: "3px",
+        }}
+      >
+        {files.map(createTab)}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexGrow: 1,
+        }}
+      />
+      <div
+        ref={divRef}
+        style={{
+          marginInlineEnd: "var(--size-4-1)",
+          padding: "var(--size-4-2) 0 var(--size-2-3)",
+        }}
+        onClick={() => {
+          const menu = new Menu();
+          files.forEach((filename: string) => {
+            menu.addItem((item) => {
+              item.setTitle(filename).onClick(() => onTabClick(filename));
+            });
+          });
+          // We use the divRef to force the position to be relative to this div. We want the position
+          // to always be the same so using the click event is not feasible as that depends on the
+          // coordinates of the user click.
+          // The event target is not usable either as depending where the user clicks the target
+          // might be this div or its children thus having different positions.
+          const rect = divRef.current!.getBoundingClientRect();
+          menu.showAtPosition({ x: rect.left, y: rect.bottom });
+        }}
+      >
+        <span className="clickable-icon">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="svg-icon lucide-chevron-down"
+          >
+            <path d="m6 9 6 6 6-6"></path>
+          </svg>
+        </span>
+      </div>
+    </div>
+  );
+};
+
+export default FilesTabBar;

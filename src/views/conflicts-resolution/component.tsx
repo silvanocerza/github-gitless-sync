@@ -7,6 +7,7 @@ import { createDiffHighlightPlugin } from "./diff-highlight-plugin";
 import EditorPane from "./editor-pane";
 import ActionsGutter from "./actions-gutter";
 import * as React from "react";
+import FilesTabBar from "./files-tab-bar";
 
 // Add styles for diff highlighting
 const styles = document.createElement("style");
@@ -53,105 +54,117 @@ const DiffView: React.FC<DiffViewProps> = ({
   return (
     <div
       style={{
-        width: "100%",
         height: "100%",
         display: "flex",
-        overflow: "hidden",
+        flexDirection: "column",
       }}
     >
-      <div style={{ flex: 1, overflow: "hidden" }}>
-        <EditorPane
-          content={oldText}
-          highlightPluginSpec={{
-            diff: diffs,
-            isOriginal: true,
-          }}
-          onEditorUpdate={handleEditorReady}
-          onContentChange={onOldTextChange}
-          onScrollTopUpdate={setLeftEditorTopOffset}
-        />
-      </div>
-      <div style={{ minWidth: "160px", width: "auto" }}>
-        <ActionsGutter
-          diffChunks={diffs}
-          lineHeight={lineHeight}
-          leftEditorTopOffset={leftEditorTopOffset}
-          rightEditorTopLineOffset={rightEditorTopOffset}
-          onAcceptLeft={(chunk: DiffChunk) => {
-            if (chunk.type === "add") {
-              const oldLines = oldText.split("\n");
-              oldLines.splice(
-                chunk.startLeftLine - 1,
-                0,
-                ...newText
-                  .split("\n")
-                  .slice(chunk.startRightLine - 1, chunk.endRightLine - 1),
-              );
-              onOldTextChange(oldLines.join("\n"));
-            } else if (chunk.type === "modify") {
-              const oldLines = oldText.split("\n");
-              oldLines.splice(
-                chunk.startLeftLine - 1,
-                chunk.endLeftLine - chunk.startLeftLine,
-                ...newText
-                  .split("\n")
-                  .slice(chunk.startRightLine - 1, chunk.endRightLine - 1),
-              );
-              onOldTextChange(oldLines.join("\n"));
-            }
-          }}
-          onAcceptRight={(chunk: DiffChunk) => {
-            if (chunk.type === "remove") {
-              const newLines = newText.split("\n");
-              newLines.splice(
-                chunk.startRightLine - 1,
-                0,
-                ...oldText
-                  .split("\n")
-                  .slice(chunk.startLeftLine - 1, chunk.endLeftLine - 1),
-              );
-              onNewTextChange(newLines.join("\n"));
-            } else if (chunk.type === "modify") {
-              const newLines = newText.split("\n");
-              newLines.splice(
-                chunk.startRightLine - 1,
-                chunk.endRightLine - chunk.startRightLine,
-                ...oldText
-                  .split("\n")
-                  .slice(chunk.startLeftLine - 1, chunk.endLeftLine - 1),
-              );
-              onNewTextChange(newLines.join("\n"));
-            }
-          }}
-          onReject={(chunk: DiffChunk) => {
-            if (chunk.type === "add") {
-              const newLines = newText.split("\n");
-              newLines.splice(
-                chunk.startRightLine - 1,
-                chunk.endRightLine - chunk.startRightLine,
-              );
-              onNewTextChange(newLines.join("\n"));
-            } else if (chunk.type === "remove") {
-              const oldLines = oldText.split("\n");
-              oldLines.splice(
-                chunk.startLeftLine - 1,
-                chunk.endLeftLine - chunk.startLeftLine,
-              );
-              onOldTextChange(oldLines.join("\n"));
-            }
-          }}
-        />
-      </div>
-      <div style={{ flex: 1, overflow: "hidden" }}>
-        <EditorPane
-          content={newText}
-          highlightPluginSpec={{
-            diff: diffs,
-            isOriginal: false,
-          }}
-          onContentChange={onNewTextChange}
-          onScrollTopUpdate={setRightEditorTopOffset}
-        />
+      <FilesTabBar
+        files={["this", "that", "those"]}
+        onTabChange={(filename: string) => console.log(`Clicked ${filename}`)}
+      />
+      <div
+        style={{
+          width: "100%",
+          height: "100%",
+          display: "flex",
+          overflow: "hidden",
+        }}
+      >
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <EditorPane
+            content={oldText}
+            highlightPluginSpec={{
+              diff: diffs,
+              isOriginal: true,
+            }}
+            onEditorUpdate={handleEditorReady}
+            onContentChange={onOldTextChange}
+            onScrollTopUpdate={setLeftEditorTopOffset}
+          />
+        </div>
+        <div style={{ minWidth: "160px", width: "auto" }}>
+          <ActionsGutter
+            diffChunks={diffs}
+            lineHeight={lineHeight}
+            leftEditorTopOffset={leftEditorTopOffset}
+            rightEditorTopLineOffset={rightEditorTopOffset}
+            onAcceptLeft={(chunk: DiffChunk) => {
+              if (chunk.type === "add") {
+                const oldLines = oldText.split("\n");
+                oldLines.splice(
+                  chunk.startLeftLine - 1,
+                  0,
+                  ...newText
+                    .split("\n")
+                    .slice(chunk.startRightLine - 1, chunk.endRightLine - 1),
+                );
+                onOldTextChange(oldLines.join("\n"));
+              } else if (chunk.type === "modify") {
+                const oldLines = oldText.split("\n");
+                oldLines.splice(
+                  chunk.startLeftLine - 1,
+                  chunk.endLeftLine - chunk.startLeftLine,
+                  ...newText
+                    .split("\n")
+                    .slice(chunk.startRightLine - 1, chunk.endRightLine - 1),
+                );
+                onOldTextChange(oldLines.join("\n"));
+              }
+            }}
+            onAcceptRight={(chunk: DiffChunk) => {
+              if (chunk.type === "remove") {
+                const newLines = newText.split("\n");
+                newLines.splice(
+                  chunk.startRightLine - 1,
+                  0,
+                  ...oldText
+                    .split("\n")
+                    .slice(chunk.startLeftLine - 1, chunk.endLeftLine - 1),
+                );
+                onNewTextChange(newLines.join("\n"));
+              } else if (chunk.type === "modify") {
+                const newLines = newText.split("\n");
+                newLines.splice(
+                  chunk.startRightLine - 1,
+                  chunk.endRightLine - chunk.startRightLine,
+                  ...oldText
+                    .split("\n")
+                    .slice(chunk.startLeftLine - 1, chunk.endLeftLine - 1),
+                );
+                onNewTextChange(newLines.join("\n"));
+              }
+            }}
+            onReject={(chunk: DiffChunk) => {
+              if (chunk.type === "add") {
+                const newLines = newText.split("\n");
+                newLines.splice(
+                  chunk.startRightLine - 1,
+                  chunk.endRightLine - chunk.startRightLine,
+                );
+                onNewTextChange(newLines.join("\n"));
+              } else if (chunk.type === "remove") {
+                const oldLines = oldText.split("\n");
+                oldLines.splice(
+                  chunk.startLeftLine - 1,
+                  chunk.endLeftLine - chunk.startLeftLine,
+                );
+                onOldTextChange(oldLines.join("\n"));
+              }
+            }}
+          />
+        </div>
+        <div style={{ flex: 1, overflow: "hidden" }}>
+          <EditorPane
+            content={newText}
+            highlightPluginSpec={{
+              diff: diffs,
+              isOriginal: false,
+            }}
+            onContentChange={onNewTextChange}
+            onScrollTopUpdate={setRightEditorTopOffset}
+          />
+        </div>
       </div>
     </div>
   );
