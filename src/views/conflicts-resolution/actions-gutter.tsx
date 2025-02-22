@@ -11,6 +11,9 @@ interface ActionsGutterProps {
   // This is essential to correctly draw the lines between
   // the left and right editor
   lineHeight: number;
+  // These two properties are necessary to handle editors scrolling
+  leftEditorTopOffset: number;
+  rightEditorTopLineOffset: number;
   onAcceptLeft: (chunk: DiffChunk) => void;
   onAcceptRight: (chunk: DiffChunk) => void;
   onReject: (chunk: DiffChunk) => void;
@@ -19,6 +22,8 @@ interface ActionsGutterProps {
 const ActionsGutter: React.FC<ActionsGutterProps> = ({
   diffChunks,
   lineHeight,
+  leftEditorTopOffset: leftEditorTopLineOffset,
+  rightEditorTopLineOffset: rightEditorTopOffset,
   onAcceptLeft,
   onAcceptRight,
   onReject,
@@ -39,10 +44,15 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
   }, []);
 
   const drawChunk = (chunk: DiffChunk, index: number) => {
-    const topLeft = (chunk.startLeftLine - 1) * lineHeight;
-    const bottomLeft = (chunk.endLeftLine - 1) * lineHeight;
-    const topRight = (chunk.startRightLine - 1) * lineHeight;
-    const bottomRight = (chunk.endRightLine - 1) * lineHeight;
+    // The offsets are substracted to compensate the editors scrolling
+    const topLeft =
+      (chunk.startLeftLine - 1) * lineHeight - leftEditorTopLineOffset;
+    const bottomLeft =
+      (chunk.endLeftLine - 1) * lineHeight - leftEditorTopLineOffset;
+    const topRight =
+      (chunk.startRightLine - 1) * lineHeight - rightEditorTopOffset;
+    const bottomRight =
+      (chunk.endRightLine - 1) * lineHeight - rightEditorTopOffset;
     const color =
       chunk.type == "add"
         ? "var(--color-green)"

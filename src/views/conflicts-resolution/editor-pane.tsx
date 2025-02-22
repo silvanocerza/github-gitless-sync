@@ -12,11 +12,18 @@ interface EditorPaneProps {
   highlightPluginSpec: DiffHighlightPluginSpec;
   onEditorUpdate?: (editor: EditorView) => void;
   onContentChange: (content: string) => void;
+  // Used to track the offset of the first line when the editor scrolls
+  onScrollTopUpdate?: (topOffset: number) => void;
 }
 
 const EditorPane: React.FC<EditorPaneProps> = (props) => {
-  const { content, highlightPluginSpec, onEditorUpdate, onContentChange } =
-    props;
+  const {
+    content,
+    highlightPluginSpec,
+    onEditorUpdate,
+    onContentChange,
+    onScrollTopUpdate,
+  } = props;
   const extensions = React.useMemo(() => {
     return [
       // basicSetup minus line numbers
@@ -45,6 +52,11 @@ const EditorPane: React.FC<EditorPaneProps> = (props) => {
         },
       }),
       markdown(),
+      EditorView.domEventObservers({
+        scroll(event) {
+          onScrollTopUpdate?.(event.target.scrollTop);
+        },
+      }),
     ];
   }, [highlightPluginSpec]);
 

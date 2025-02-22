@@ -42,6 +42,12 @@ const DiffView: React.FC<DiffViewProps> = ({
   const handleEditorReady = (editor: EditorView) => {
     setLineHeight(editor.defaultLineHeight);
   };
+
+  const [leftEditorTopOffset, setLeftEditorTopOffset] =
+    React.useState<number>(0);
+  const [rightEditorTopOffset, setRightEditorTopOffset] =
+    React.useState<number>(0);
+
   const diffs = diff(oldText, newText);
 
   return (
@@ -62,12 +68,15 @@ const DiffView: React.FC<DiffViewProps> = ({
           }}
           onEditorUpdate={handleEditorReady}
           onContentChange={onOldTextChange}
+          onScrollTopUpdate={setLeftEditorTopOffset}
         />
       </div>
       <div style={{ minWidth: "160px", width: "auto" }}>
         <ActionsGutter
           diffChunks={diffs}
           lineHeight={lineHeight}
+          leftEditorTopOffset={leftEditorTopOffset}
+          rightEditorTopLineOffset={rightEditorTopOffset}
           onAcceptLeft={(chunk: DiffChunk) => {
             if (chunk.type === "add") {
               const oldLines = oldText.split("\n");
@@ -141,6 +150,7 @@ const DiffView: React.FC<DiffViewProps> = ({
             isOriginal: false,
           }}
           onContentChange={onNewTextChange}
+          onScrollTopUpdate={setRightEditorTopOffset}
         />
       </div>
     </div>
