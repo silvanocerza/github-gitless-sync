@@ -54,7 +54,8 @@ const EditorPane: React.FC<EditorPaneProps> = (props) => {
       markdown(),
       EditorView.domEventObservers({
         scroll(event) {
-          onScrollTopUpdate?.(event.target.scrollTop);
+          const target = event.target as HTMLElement;
+          onScrollTopUpdate?.(target.scrollTop);
         },
       }),
     ];
