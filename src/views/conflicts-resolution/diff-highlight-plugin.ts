@@ -21,6 +21,12 @@ export function createDiffHighlightPlugin(spec: DiffHighlightPluginSpec) {
         this.decorations = this.buildDecorations(view);
       }
 
+      update(update: ViewUpdate) {
+        if (update.docChanged) {
+          this.decorations = this.buildDecorations(update.view);
+        }
+      }
+
       buildDecorations(view: EditorView): DecorationSet {
         const decorations = [];
         const doc = view.state.doc;
