@@ -287,7 +287,7 @@ export default class SyncManager {
       throw new Error("Remote manifest is missing");
     }
 
-    const blob = await this.client.getBlob(manifest.url);
+    const blob = await this.client.getBlob(manifest.sha);
     const remoteMetadata: Metadata = JSON.parse(atob(blob.content));
 
     const conflicts = this.findConflicts(
@@ -603,14 +603,12 @@ export default class SyncManager {
   }
 
   async downloadFile(file: GetTreeResponseItem, lastModified: number) {
-    const url = file.url;
     const fileMetadata = this.metadataStore.data.files[file.path];
     if (fileMetadata && fileMetadata.sha === file.sha) {
       // File already exists and has the same SHA, no need to download it again.
       return;
     }
-
-    const blob = await this.client.getBlob(url);
+    const blob = await this.client.getBlob(file.sha);
     const normalizedPath = normalizePath(file.path);
     const fileFolder = normalizePath(
       normalizedPath.split("/").slice(0, -1).join("/"),

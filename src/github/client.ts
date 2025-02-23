@@ -144,12 +144,12 @@ export default class GithubClient {
   }
 
   /**
-   * Gets a blob from a blob url
-   * @param url blob url
+   * Gets a blob from its sha
+   * @param url blob sha
    */
-  async getBlob(url: string): Promise<BlobFile> {
+  async getBlob(sha: string): Promise<BlobFile> {
     const res = await requestUrl({
-      url: url,
+      url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/blobs/${sha}`,
       headers: this.headers(),
       throw: false,
     });
