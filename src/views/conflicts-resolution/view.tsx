@@ -4,6 +4,7 @@ import DiffView from "./component";
 import GitHubSyncPlugin from "src/main";
 import * as React from "react";
 import FilesTabBar from "./files-tab-bar";
+import { ConflictFile, ConflictResolution } from "src/sync-manager";
 
 export const CONFLICTS_RESOLUTION_VIEW_TYPE = "conflicts-resolution-view";
 
@@ -70,12 +71,6 @@ Final line
 
 asdfasdf`;
 
-interface ConflictFile {
-  filename: string;
-  remoteContent: string;
-  localContent: string;
-}
-
 export class ConflictsResolutionView extends ItemView {
   icon: IconName = "merge";
 
@@ -84,6 +79,7 @@ export class ConflictsResolutionView extends ItemView {
     private plugin: GitHubSyncPlugin,
   ) {
     super(leaf);
+    console.log(`Created ${CONFLICTS_RESOLUTION_VIEW_TYPE}`);
   }
 
   getViewType() {
@@ -94,16 +90,38 @@ export class ConflictsResolutionView extends ItemView {
     return "Conflicts Resolution";
   }
 
-  async onOpen() {
-    const container = this.containerEl.children[1];
-    container.empty();
-    // We don't want any padding, the DiffView component will handle that
-    (container as HTMLElement).style.padding = "0";
-    const files: ConflictFile[] = [
+  onResolve(resolutions: ConflictResolution[]) {
+    if (this.plugin.conflictsResolver) {
+      this.plugin.conflictsResolver(resolutions);
+      this.plugin.conflictsResolver = null;
+    }
+  }
+
+  setConflictFiles(conflicts: ConflictFile[]) {
+    const mockFiles: ConflictFile[] = [
       { filename: "this", remoteContent: oldText1, localContent: newText1 },
       { filename: "that", remoteContent: oldText2, localContent: newText2 },
       { filename: "those", remoteContent: oldText3, localContent: newText3 },
     ];
+    this.render(mockFiles);
+  }
+
+  async onOpen() {
+    console.log(`Opened ${CONFLICTS_RESOLUTION_VIEW_TYPE}`);
+
+    // const mockFiles: ConflictFile[] = [
+    //   { filename: "this", remoteContent: oldText1, localContent: newText1 },
+    //   { filename: "that", remoteContent: oldText2, localContent: newText2 },
+    //   { filename: "those", remoteContent: oldText3, localContent: newText3 },
+    // ];
+    // this.render(mockFiles);
+  }
+
+  private render(conflicts: ConflictFile[]) {
+    const container = this.containerEl.children[1];
+    container.empty();
+    // We don't want any padding, the DiffView component will handle that
+    (container as HTMLElement).style.padding = "0";
     const root: Root = createRoot(container);
     const App = ({ initialFiles }: { initialFiles: ConflictFile[] }) => {
       const [files, setFiles] = React.useState(initialFiles);
@@ -130,23 +148,22 @@ export class ConflictsResolutionView extends ItemView {
                 const tempFiles = [...files];
                 tempFiles[currentFileIndex].remoteContent = content;
                 setFiles(tempFiles);
-                // currentFile.remoteContent = content;
               }}
               onNewTextChange={(content: string) => {
                 const tempFiles = [...files];
                 tempFiles[currentFileIndex].localContent = content;
                 setFiles(tempFiles);
-                // currentFile.localContent = content;
               }}
             />
           </div>
         </React.StrictMode>
       );
     };
-    root.render(<App initialFiles={files} />);
+    root.render(<App initialFiles={conflicts} />);
   }
 
   async onClose() {
     // Nothing to clean up.
+    console.log(`Closed ${CONFLICTS_RESOLUTION_VIEW_TYPE}`);
   }
 }

@@ -1,7 +1,7 @@
 import { EventRef, Plugin, Platform, WorkspaceLeaf } from "obsidian";
 import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
 import GitHubSyncSettingsTab from "./settings/tab";
-import SyncManager from "./sync-manager";
+import SyncManager, { ConflictFile, ConflictResolution } from "./sync-manager";
 import { FileMetadata } from "./metadata-store";
 import { OnboardingDialog } from "./views/onboarding/view";
 import Logger from "./logger";
@@ -22,6 +22,13 @@ export default class GitHubSyncPlugin extends Plugin {
   vaultCreateListener: EventRef | null = null;
   vaultModifyListener: EventRef | null = null;
 
+  // Called in ConflictResolutionView when the user solves all the conflicts.
+  // This is initialized every time we open the view to set new conflicts so
+  // we can notify the SyncManager that everything has been resolved and the sync
+  // process can continue on.
+  conflictsResolver: ((resolutions: ConflictResolution[]) => void) | null =
+    null;
+
   async onUserEnable() {
     if (Platform.isMobile) {
       // TODO: Implement onboarding for mobile
@@ -34,6 +41,16 @@ export default class GitHubSyncPlugin extends Plugin {
     }
   }
 
+  getConflictsView(): ConflictsResolutionView | null {
+    const leaves = this.app.workspace.getLeavesOfType(
+      CONFLICTS_RESOLUTION_VIEW_TYPE,
+    );
+    if (leaves.length === 0) {
+      return null;
+    }
+    return leaves[0].view as ConflictsResolutionView;
+  }
+
   async activateView() {
     const { workspace } = this.app;
     let leaf: WorkspaceLeaf | null = null;
@@ -41,7 +58,7 @@ export default class GitHubSyncPlugin extends Plugin {
     if (leaves.length > 0) {
       leaf = leaves[0];
     } else {
-      leaf = workspace.getRightLeaf(false);
+      leaf = workspace.getRightLeaf(false)!;
       await leaf.setViewState({
         type: CONFLICTS_RESOLUTION_VIEW_TYPE,
         active: true,
@@ -57,11 +74,10 @@ export default class GitHubSyncPlugin extends Plugin {
       CONFLICTS_RESOLUTION_VIEW_TYPE,
       (leaf) => new ConflictsResolutionView(leaf, this),
     );
-    this.addRibbonIcon(
-      "dice",
-      "Activate view",
-      async () => await this.activateView(),
-    );
+    this.addRibbonIcon("dice", "Activate view", async () => {
+      await this.activateView();
+      this.getConflictsView()?.setConflictFiles([]);
+    });
     this.logger = new Logger(this.app.vault, this.settings.enableLogging);
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
@@ -182,24 +198,12 @@ export default class GitHubSyncPlugin extends Plugin {
     this.uploadModifiedFilesRibbonIcon = null;
   }
 
-  async onConflicts(
-    conflicts: { remoteFile: FileMetadata; localFile: FileMetadata }[],
-  ): Promise<boolean[]> {
-    return await Promise.all(
-      conflicts.map(
-        async ({
-          remoteFile,
-          localFile,
-        }: {
-          remoteFile: FileMetadata;
-          localFile: FileMetadata;
-        }) => {
-          // TODO: Add a proper conflict resolution view
-          // This way remote files are always preferred
-          return true;
-        },
-      ),
-    );
+  async onConflicts(conflicts: ConflictFile[]): Promise<ConflictResolution[]> {
+    return await new Promise(async (resolve) => {
+      this.conflictsResolver = resolve;
+      await this.activateView();
+      this.getConflictsView()?.setConflictFiles(conflicts);
+    });
   }
 
   async loadSettings() {

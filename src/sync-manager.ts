@@ -18,9 +18,20 @@ interface SyncAction {
   filePath: string;
 }
 
+export interface ConflictFile {
+  filename: string;
+  remoteContent: string;
+  localContent: string;
+}
+
+export interface ConflictResolution {
+  filename: string;
+  content: string;
+}
+
 type OnConflictsCallback = (
-  conflicts: { remoteFile: FileMetadata; localFile: FileMetadata }[],
-) => Promise<boolean[]>;
+  conflicts: ConflictFile[],
+) => Promise<ConflictResolution[]>;
 
 export default class SyncManager {
   private metadataStore: MetadataStore;
@@ -290,10 +301,7 @@ export default class SyncManager {
     const blob = await this.client.getBlob(manifest.sha);
     const remoteMetadata: Metadata = JSON.parse(atob(blob.content));
 
-    const conflicts = this.findConflicts(
-      remoteMetadata.files,
-      this.metadataStore.data.files,
-    );
+    const conflicts = await this.findConflicts(remoteMetadata.files);
     let conflictResolutions: SyncAction[] = [];
     if (conflicts.length > 0) {
       // TODO: Show conflicts to the user with a callback
@@ -401,47 +409,51 @@ export default class SyncManager {
 
   /**
    * Finds conflicts between local and remote files.
-   * @param remoteFiles All files in the remote repo
-   * @param localFiles All files in the local vault
-   * @returns List of objects with both remote and local conflicting files metadata
+   * @param filesMetadata Remote files metadata
+   * @returns List of object containing filename, remote and local content of conflicting files
    */
-  findConflicts(
-    remoteFiles: { [key: string]: FileMetadata },
-    localFiles: { [key: string]: FileMetadata },
-  ): { remoteFile: FileMetadata; localFile: FileMetadata }[] {
-    const commonFiles = Object.keys(remoteFiles).filter(
-      (key) => key in localFiles,
+  async findConflicts(filesMetadata: {
+    [key: string]: FileMetadata;
+  }): Promise<ConflictFile[]> {
+    const commonFiles = Object.keys(filesMetadata).filter(
+      (key) => key in this.metadataStore.data.files,
     );
+    if (commonFiles.length === 0) {
+      return [];
+    }
 
-    return commonFiles
-      .map((filePath: string) => {
-        const remoteFile = remoteFiles[filePath];
-        const localFile = localFiles[filePath];
-
-        // We compare the SHA cause it remote files changes the SHA changes
-        // but not the same happens when the file is modified locally.
-        // So if sha are different and the local file is newer we can't
-        // know for sure which version should be kept.
-        if (
-          remoteFile.sha !== localFile.sha &&
-          remoteFile.lastModified < localFile.lastModified
-        ) {
-          // File is modified on both sides, the user must solve the conflict
+    return await Promise.all(
+      commonFiles
+        .filter((filePath: string) => {
+          // We compare the SHA cause if the remote file changes the SHA changes,
+          // but not the same happens when the file is modified locally.
+          // So if the SHAs are different and the local file is newer we can't
+          // know for sure which version should be kept and that's a conflict.
+          const remoteFile = filesMetadata[filePath];
+          const localFile = this.metadataStore.data.files[filePath];
+          return (
+            remoteFile.sha !== localFile.sha &&
+            remoteFile.lastModified < localFile.lastModified
+          );
+        })
+        .map(async (filePath: string) => {
+          // Load contents in parallel
+          const [remoteContent, localContent] = await Promise.all([
+            await (async () => {
+              const res = await this.client.getBlob(
+                filesMetadata[filePath].sha!,
+              );
+              return atob(res.content);
+            })(),
+            await this.vault.adapter.read(normalizePath(filePath)),
+          ]);
           return {
-            remoteFile: remoteFile,
-            localFile: localFile,
+            filename: filePath,
+            remoteContent: remoteContent,
+            localContent: localContent,
           };
-        }
-        return null;
-      })
-      .filter(
-        (
-          conflict: {
-            remoteFile: FileMetadata;
-            localFile: FileMetadata;
-          } | null,
-        ) => conflict !== null,
-      );
+        }),
+    );
   }
 
   /**
