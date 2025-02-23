@@ -28,6 +28,7 @@ interface DiffViewProps {
   newText: string;
   onOldTextChange: (content: string) => void;
   onNewTextChange: (content: string) => void;
+  onConflictResolved: () => void;
 }
 
 const DiffView: React.FC<DiffViewProps> = ({
@@ -35,6 +36,7 @@ const DiffView: React.FC<DiffViewProps> = ({
   newText,
   onOldTextChange,
   onNewTextChange,
+  onConflictResolved,
 }) => {
   // We need to know the line height to correctly draw the ribbon between the left
   // and right editor in the actions gutter
@@ -72,6 +74,23 @@ const DiffView: React.FC<DiffViewProps> = ({
         />
       </div>
       <div style={{ minWidth: "160px", width: "auto" }}>
+        {diffs.length === 0 && (
+          <button
+            style={{
+              position: "absolute",
+              left: "50%",
+              top: "50%",
+              transform: "translate(-50%, -50%)",
+              zIndex: 1,
+              backgroundColor: "var(--interactive-accent)",
+              color: "var(--text-on-accent)",
+            }}
+            onClick={onConflictResolved}
+          >
+            Resolve conflict
+          </button>
+        )}
+
         <ActionsGutter
           diffChunks={diffs}
           lineHeight={lineHeight}

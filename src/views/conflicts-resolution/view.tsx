@@ -125,8 +125,35 @@ export class ConflictsResolutionView extends ItemView {
     const root: Root = createRoot(container);
     const App = ({ initialFiles }: { initialFiles: ConflictFile[] }) => {
       const [files, setFiles] = React.useState(initialFiles);
+      const [resolvedConflicts, setResolvedConflicts] = React.useState<
+        ConflictResolution[]
+      >([]);
       const [currentFileIndex, setCurrentFileIndex] = React.useState(0);
       const currentFile = files.at(currentFileIndex);
+
+      const onConflictResolved = () => {
+        // Remove the file from the conflicts to resolve
+        setFiles(files.filter((_, index) => index !== currentFileIndex));
+        // Keep track of the resolved conflicts
+        setResolvedConflicts([
+          ...resolvedConflicts,
+          {
+            filename: currentFile!.filename,
+            // We could get either the local or remote content at this point since
+            // they're identical
+            content: currentFile!.localContent,
+          },
+        ]);
+        // Select the previous file only if we're not already at the start
+        if (currentFileIndex > 0) {
+          setCurrentFileIndex(currentFileIndex - 1);
+        }
+        if (files.length === 0) {
+          // We solved all conflicts, we can resume syncing
+          this.onResolve(resolvedConflicts);
+        }
+      };
+
       return (
         <React.StrictMode>
           <div
@@ -134,27 +161,62 @@ export class ConflictsResolutionView extends ItemView {
               height: "100%",
               display: "flex",
               flexDirection: "column",
+              justifyContent: "center",
             }}
           >
-            <FilesTabBar
-              files={files.map((f) => f.filename)}
-              currentFile={currentFile?.filename || ""}
-              setCurrentFileIndex={setCurrentFileIndex}
-            />
-            <DiffView
-              oldText={currentFile?.remoteContent || ""}
-              newText={currentFile?.localContent || ""}
-              onOldTextChange={(content: string) => {
-                const tempFiles = [...files];
-                tempFiles[currentFileIndex].remoteContent = content;
-                setFiles(tempFiles);
-              }}
-              onNewTextChange={(content: string) => {
-                const tempFiles = [...files];
-                tempFiles[currentFileIndex].localContent = content;
-                setFiles(tempFiles);
-              }}
-            />
+            {files.length === 0 ? (
+              <div
+                style={{
+                  position: "relative",
+                  textAlign: "center",
+                  alignSelf: "center",
+                }}
+              >
+                <div
+                  style={{
+                    margin: "20px 0",
+                    fontWeight: "var(--h2-weight)",
+                    fontSize: "var(--h2-size)",
+                    lineHeight: "var(--line-height-tight)",
+                  }}
+                >
+                  No conflicts to resolve
+                </div>
+                <div
+                  style={{
+                    margin: "20px 0",
+                    fontSize: "var(--font-text-size)",
+                    color: "var(--text-muted)",
+                    lineHeight: "var(--line-height-tight)",
+                  }}
+                >
+                  That's good, keep going
+                </div>
+              </div>
+            ) : (
+              <>
+                <FilesTabBar
+                  files={files.map((f) => f.filename)}
+                  currentFile={currentFile?.filename || ""}
+                  setCurrentFileIndex={setCurrentFileIndex}
+                />
+                <DiffView
+                  oldText={currentFile?.remoteContent || ""}
+                  newText={currentFile?.localContent || ""}
+                  onOldTextChange={(content: string) => {
+                    const tempFiles = [...files];
+                    tempFiles[currentFileIndex].remoteContent = content;
+                    setFiles(tempFiles);
+                  }}
+                  onNewTextChange={(content: string) => {
+                    const tempFiles = [...files];
+                    tempFiles[currentFileIndex].localContent = content;
+                    setFiles(tempFiles);
+                  }}
+                  onConflictResolved={onConflictResolved}
+                />
+              </>
+            )}
           </div>
         </React.StrictMode>
       );
