@@ -1,8 +1,13 @@
-import { EventRef, Plugin, Platform, WorkspaceLeaf } from "obsidian";
+import {
+  EventRef,
+  Plugin,
+  Platform,
+  WorkspaceLeaf,
+  normalizePath,
+} from "obsidian";
 import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
 import GitHubSyncSettingsTab from "./settings/tab";
 import SyncManager, { ConflictFile, ConflictResolution } from "./sync-manager";
-import { FileMetadata } from "./metadata-store";
 import { OnboardingDialog } from "./views/onboarding/view";
 import Logger from "./logger";
 import {
@@ -28,6 +33,12 @@ export default class GitHubSyncPlugin extends Plugin {
   // process can continue on.
   conflictsResolver: ((resolutions: ConflictResolution[]) => void) | null =
     null;
+
+  // We keep track of the sync conflicts in here too in case the
+  // conflicts view must be rebuilt, or the user closes the view
+  // and it gets destroyed.
+  // By keeping them here we can recreate it easily.
+  private conflicts: ConflictFile[] = [];
 
   async onUserEnable() {
     if (Platform.isMobile) {
@@ -72,11 +83,11 @@ export default class GitHubSyncPlugin extends Plugin {
 
     this.registerView(
       CONFLICTS_RESOLUTION_VIEW_TYPE,
-      (leaf) => new ConflictsResolutionView(leaf, this),
+      (leaf) => new ConflictsResolutionView(leaf, this, this.conflicts),
     );
-    this.addRibbonIcon("dice", "Activate view", async () => {
+    this.addRibbonIcon("merge", "Open sync conflicts resolution", async () => {
       await this.activateView();
-      this.getConflictsView()?.setConflictFiles([]);
+      this.getConflictsView()?.setConflictFiles(this.conflicts);
     });
     this.logger = new Logger(this.app.vault, this.settings.enableLogging);
 
@@ -199,6 +210,7 @@ export default class GitHubSyncPlugin extends Plugin {
   }
 
   async onConflicts(conflicts: ConflictFile[]): Promise<ConflictResolution[]> {
+    this.conflicts = conflicts;
     return await new Promise(async (resolve) => {
       this.conflictsResolver = resolve;
       await this.activateView();

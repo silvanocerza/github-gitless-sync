@@ -302,39 +302,34 @@ export default class SyncManager {
     const remoteMetadata: Metadata = JSON.parse(atob(blob.content));
 
     const conflicts = await this.findConflicts(remoteMetadata.files);
-    let conflictResolutions: SyncAction[] = [];
-    if (conflicts.length > 0) {
-      // TODO: Show conflicts to the user with a callback
-      // Wait for response
-      // Create new action to handle the conflict
-      // Add the new action to the list later on
-      console.log("Conflicts");
-      console.log(conflicts);
-      await this.logger.warn("Found conflicts", conflicts);
 
-      (await this.onConflicts(conflicts)).forEach(
-        (resolution: boolean, index: number) => {
-          if (resolution) {
-            conflictResolutions.push({
-              type: "download",
-              filePath: conflicts[index].remoteFile.path,
-            });
-          } else {
-            conflictResolutions.push({
-              type: "upload",
-              filePath: conflicts[index].localFile.path,
-            });
-          }
+    // We treat every resolved conflict as an upload SyncAction, mainly cause
+    // the user has complete freedom on the edits they can apply to the conflicting files.
+    // So when a conflict is resolved we change the file locally and upload it.
+    // That solves the conflict.
+    let conflictActions: SyncAction[] = [];
+    // We keep track of the conflict resolutions cause we want to update the file
+    // locally only when we're sure the sync was successul. That happens after we
+    // commit the sync.
+    let conflictResolutions: ConflictResolution[] = [];
+
+    if (conflicts.length > 0) {
+      await this.logger.warn("Found conflicts", conflicts);
+      // Here we block the sync process until the user has resolved all the conflicts
+      conflictResolutions = await this.onConflicts(conflicts);
+      conflictActions = conflictResolutions.map(
+        (resolution: ConflictResolution) => {
+          return { type: "upload", filePath: resolution.filename };
         },
       );
     }
 
-    const actions = [
+    const actions: SyncAction[] = [
       ...this.determineSyncActions(
         remoteMetadata.files,
         this.metadataStore.data.files,
       ),
-      ...conflictResolutions,
+      ...conflictActions,
     ];
 
     if (actions.length === 0) {
@@ -366,7 +361,15 @@ export default class SyncManager {
         switch (action.type) {
           case "upload": {
             const normalizedPath = normalizePath(action.filePath);
-            const content = await this.vault.adapter.read(normalizedPath);
+            const resolution = conflictResolutions.find(
+              (c: ConflictResolution) => c.filename === action.filePath,
+            );
+            // If the file was conflicting we need to read the content from the
+            // conflict resolution instead of reading it from file since at this point
+            // we still have not updated the local file.
+            const content =
+              resolution?.content ||
+              (await this.vault.adapter.read(normalizedPath));
             newTreeFiles[action.filePath] = {
               path: action.filePath,
               mode: "100644",
@@ -578,14 +581,30 @@ export default class SyncManager {
    *
    * @param treeFiles Updated list of files in the remote tree
    * @param baseTreeSha sha of the tree to use as base for the new tree
+   * @param conflictResolutions list of conflicts between remote and local files
    */
   async commitSync(
     treeFiles: { [key: string]: NewTreeRequestItem },
     baseTreeSha: string,
+    conflictResolutions: ConflictResolution[] = [],
   ) {
     // Update local sync time
-    this.metadataStore.data.lastSync = Date.now();
+    const syncTime = Date.now();
+    this.metadataStore.data.lastSync = syncTime;
     this.metadataStore.save();
+
+    // We update the last modified timestamp for all files that had resolved conflicts
+    // to the the same time as the sync time.
+    // At this time we still have not written the conflict resolution content to file,
+    // so the last modified timestamp doesn't reflect that.
+    // To prevent further conflicts in future syncs and to reflect the content change
+    // on the remote metadata we update the timestamp for the conflicting files here,
+    // just before pushing to remote.
+    // We're going to update the local content when the sync is successful.
+    conflictResolutions.forEach((resolution) => {
+      this.metadataStore.data.files[resolution.filename].lastModified =
+        syncTime;
+    });
 
     // Update manifest in list of new tree items
     delete treeFiles[`${this.vault.configDir}/${MANIFEST_FILE_NAME}`].sha;
@@ -611,6 +630,23 @@ export default class SyncManager {
     );
 
     await this.client.updateBranchHead(commitSha);
+
+    // Update the local content of all files that had conflicts we resolved
+    await Promise.all(
+      conflictResolutions.map(async (resolution) => {
+        await this.vault.adapter.write(resolution.filename, resolution.content);
+        // Even though we set the last modified timestamp for all files with conflicts
+        // just before pushing the changes to remote we do it here again because the
+        // write right above would overwrite that.
+        // Since we want to keep the sync timestamp for this file to avoid future conflicts
+        // we update it again.
+        this.metadataStore.data.files[resolution.filename].lastModified =
+          syncTime;
+      }),
+    );
+    // Now that the sync is done and we updated the content for conflicting files
+    // we can save the latest metadata to disk.
+    this.metadataStore.save();
     await this.logger.info("Sync done");
   }
 
