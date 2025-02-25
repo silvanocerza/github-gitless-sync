@@ -10,6 +10,7 @@ export const CONFLICTS_RESOLUTION_VIEW_TYPE = "conflicts-resolution-view";
 
 export class ConflictsResolutionView extends ItemView {
   icon: IconName = "merge";
+  private root: Root | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
@@ -44,11 +45,13 @@ export class ConflictsResolutionView extends ItemView {
   }
 
   private render(conflicts: ConflictFile[]) {
-    const container = this.containerEl.children[1];
-    container.empty();
-    // We don't want any padding, the DiffView component will handle that
-    (container as HTMLElement).style.padding = "0";
-    const root: Root = createRoot(container);
+    if (!this.root) {
+      const container = this.containerEl.children[1];
+      container.empty();
+      // We don't want any padding, the DiffView component will handle that
+      (container as HTMLElement).style.padding = "0";
+      this.root = createRoot(container);
+    }
     const App = ({ initialFiles }: { initialFiles: ConflictFile[] }) => {
       const [files, setFiles] = React.useState(initialFiles);
       const [resolvedConflicts, setResolvedConflicts] = React.useState<
@@ -149,7 +152,7 @@ export class ConflictsResolutionView extends ItemView {
         </React.StrictMode>
       );
     };
-    root.render(<App initialFiles={conflicts} />);
+    this.root.render(<App initialFiles={conflicts} />);
   }
 
   async onClose() {
