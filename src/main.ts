@@ -90,6 +90,7 @@ export default class GitHubSyncPlugin extends Plugin {
       this.getConflictsView()?.setConflictFiles(this.conflicts);
     });
     this.logger = new Logger(this.app.vault, this.settings.enableLogging);
+    this.logger.init();
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
 

@@ -12,6 +12,14 @@ export default class Logger {
     this.logFile = normalizePath(`${vault.configDir}/${LOG_FILE_NAME}`);
   }
 
+  async init() {
+    // Create the log file in case it doesn't exist
+    if (await this.vault.adapter.exists(this.logFile)) {
+      return;
+    }
+    this.vault.adapter.write(this.logFile, "");
+  }
+
   private async write(
     level: string,
     message: string,
