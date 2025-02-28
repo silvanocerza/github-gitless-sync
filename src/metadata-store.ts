@@ -12,6 +12,10 @@ export interface FileMetadata {
   // SHA of the file in the remote repository.
   // This is necessary to update the file remotely.
   // If this is null the file has not yet been pushed to the remote repository.
+  // This doesn't change when the file is manually edited by the user but only
+  // when uploading or downloading this file.
+  // In short this is the SHA of the remote file at the time of the last sync,
+  // as far as the local environment is aware.
   sha: string | null;
   // Whether the file has been modified locally.
   dirty: boolean;
