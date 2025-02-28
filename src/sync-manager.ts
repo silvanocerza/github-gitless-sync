@@ -325,10 +325,11 @@ export default class SyncManager {
     }
 
     const actions: SyncAction[] = [
-      ...this.determineSyncActions(
+      ...(await this.determineSyncActions(
         remoteMetadata.files,
         this.metadataStore.data.files,
-      ),
+        conflictActions.map((action) => action.filePath),
+      )),
       ...conflictActions,
     ];
 
@@ -407,7 +408,7 @@ export default class SyncManager {
         }),
     ]);
 
-    await this.commitSync(newTreeFiles, treeSha);
+    await this.commitSync(newTreeFiles, treeSha, conflictResolutions);
   }
 
   /**
@@ -425,20 +426,37 @@ export default class SyncManager {
       return [];
     }
 
+    const conflicts = await Promise.all(
+      commonFiles.map(async (filePath: string) => {
+        if (filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}`) {
+          // The manifest file is only internal, the user must not
+          // handle conflicts for this
+          return null;
+        }
+        const remoteFile = filesMetadata[filePath];
+        const localFile = this.metadataStore.data.files[filePath];
+        if (remoteFile.deleted && localFile.deleted) {
+          return null;
+        }
+        const actualLocalSHA = await this.calculateSHA(filePath);
+        const remoteFileHasBeenModifiedSinceLastSync =
+          remoteFile.sha !== localFile.sha;
+        const localFileHasBeenModifiedSinceLastSync =
+          actualLocalSHA !== localFile.sha;
+
+        if (
+          remoteFileHasBeenModifiedSinceLastSync &&
+          localFileHasBeenModifiedSinceLastSync
+        ) {
+          return filePath;
+        }
+        return null;
+      }),
+    );
+
     return await Promise.all(
-      commonFiles
-        .filter((filePath: string) => {
-          // We compare the SHA cause if the remote file changes the SHA changes,
-          // but not the same happens when the file is modified locally.
-          // So if the SHAs are different and the local file is newer we can't
-          // know for sure which version should be kept and that's a conflict.
-          const remoteFile = filesMetadata[filePath];
-          const localFile = this.metadataStore.data.files[filePath];
-          return (
-            remoteFile.sha !== localFile.sha &&
-            remoteFile.lastModified < localFile.lastModified
-          );
-        })
+      conflicts
+        .filter((filePath): filePath is string => filePath !== null)
         .map(async (filePath: string) => {
           // Load contents in parallel
           const [remoteContent, localContent] = await Promise.all([
@@ -452,8 +470,8 @@ export default class SyncManager {
           ]);
           return {
             filename: filePath,
-            remoteContent: remoteContent,
-            localContent: localContent,
+            remoteContent,
+            localContent,
           };
         }),
     );
@@ -464,68 +482,81 @@ export default class SyncManager {
    *
    * @param remoteFiles All files in the remote repo
    * @param localFiles All files in the local vault
+   * @param conflictFiles List of paths to files that have conflict with remote
    *
    * @returns List of SyncActions
    */
-  determineSyncActions(
+  async determineSyncActions(
     remoteFiles: { [key: string]: FileMetadata },
     localFiles: { [key: string]: FileMetadata },
+    conflictFiles: string[],
   ) {
     let actions: SyncAction[] = [];
 
-    const commonFiles = Object.keys(remoteFiles).filter(
-      (key) => key in localFiles,
-    );
+    const commonFiles = Object.keys(remoteFiles)
+      .filter((filePath) => filePath in localFiles)
+      // Remove conflicting files, we determine their actions in a different way
+      .filter((filePath) => !conflictFiles.contains(filePath));
 
     // Get diff for common files
-    commonFiles.forEach((filePath: string) => {
-      const remoteFile = remoteFiles[filePath];
-      const localFile = localFiles[filePath];
-      if (remoteFile.deleted && localFile.deleted) {
-        // Nothing to do
-        return;
-      }
+    await Promise.all(
+      commonFiles.map(async (filePath: string) => {
+        if (filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}`) {
+          // The manifest file must never trigger any action
+          return;
+        }
 
-      if (
-        remoteFile.sha !== localFile.sha &&
-        remoteFile.lastModified < localFile.lastModified
-      ) {
-        // This is a conflict, we handle it separately
-        // We compare the SHA cause it remote files changes the SHA changes
-        // but not the same happens when the file is modified locally.
-        // So if sha are different and the local file is newer we can't
-        // know for sure which version should be kept.
-        return;
-      }
+        const remoteFile = remoteFiles[filePath];
+        const localFile = localFiles[filePath];
+        if (remoteFile.deleted && localFile.deleted) {
+          // Nothing to do
+          return;
+        }
 
-      if (remoteFile.deleted && !localFile.deleted) {
-        if ((remoteFile.deletedAt as number) > localFile.lastModified) {
-          actions.push({
-            type: "delete_local",
-            filePath: filePath,
-          });
-        } else if (localFile.lastModified > (remoteFile.deletedAt as number)) {
+        const localSHA = await this.calculateSHA(filePath);
+        if (remoteFile.sha === localSHA) {
+          // If the remote file sha is identical to the actual sha of the local file
+          // there are no actions to take.
+          // We calculate the SHA at the moment instead of using the one stored in the
+          // metadata file cause we update that only when the file is uploaded or downloaded.
+          return;
+        }
+
+        if (remoteFile.deleted && !localFile.deleted) {
+          if ((remoteFile.deletedAt as number) > localFile.lastModified) {
+            actions.push({
+              type: "delete_local",
+              filePath: filePath,
+            });
+          } else if (
+            localFile.lastModified > (remoteFile.deletedAt as number)
+          ) {
+            actions.push({ type: "upload", filePath: filePath });
+          }
+        }
+
+        if (!remoteFile.deleted && localFile.deleted) {
+          if (remoteFile.lastModified > (localFile.deletedAt as number)) {
+            actions.push({ type: "download", filePath: filePath });
+          } else if (
+            (localFile.deletedAt as number) > remoteFile.lastModified
+          ) {
+            actions.push({
+              type: "delete_remote",
+              filePath: filePath,
+            });
+          }
+        }
+
+        // For non-deletion cases, if SHAs differ, we just need to check if local changed.
+        // Conflicts are already filtered out so we can make this decision easily
+        if (localSHA !== localFile.sha) {
           actions.push({ type: "upload", filePath: filePath });
-        }
-      }
-
-      if (!remoteFile.deleted && localFile.deleted) {
-        if (remoteFile.lastModified > (localFile.deletedAt as number)) {
+        } else {
           actions.push({ type: "download", filePath: filePath });
-        } else if ((localFile.deletedAt as number) > remoteFile.lastModified) {
-          actions.push({
-            type: "delete_remote",
-            filePath: filePath,
-          });
         }
-      }
-
-      if (remoteFile.lastModified > localFile.lastModified) {
-        actions.push({ type: "download", filePath: filePath });
-      } else if (localFile.lastModified > remoteFile.lastModified) {
-        actions.push({ type: "upload", filePath: filePath });
-      }
-    });
+      }),
+    );
 
     // Get diff for files in remote but not in local
     Object.keys(remoteFiles).forEach((filePath: string) => {
@@ -577,6 +608,25 @@ export default class SyncManager {
   }
 
   /**
+   * Calculates the SHA1 of a file given its content.
+   * This is the same identical algoritm used by git to calculate
+   * a blob's SHA.
+   * @param filePath normalized path to file
+   * @returns String containing the file SHA1
+   */
+  async calculateSHA(filePath: string): Promise<string> {
+    const content = await this.vault.adapter.read(filePath);
+    const contentBytes = new TextEncoder().encode(content);
+    const header = new TextEncoder().encode(`blob ${contentBytes.length}\0`);
+    const store = new Uint8Array([...header, ...contentBytes]);
+    return await crypto.subtle.digest("SHA-1", store).then((hash) =>
+      Array.from(new Uint8Array(hash))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join(""),
+    );
+  }
+
+  /**
    * Creates a new sync commit in the remote repository.
    *
    * @param treeFiles Updated list of files in the remote tree
@@ -605,6 +655,21 @@ export default class SyncManager {
       this.metadataStore.data.files[resolution.filename].lastModified =
         syncTime;
     });
+
+    // We want the remote metadata file to track the correct SHA for each file blob,
+    // so just before we upload any file we update all their SHAs in the metadata file.
+    // This also makes it easier to handle conflicts.
+    // We don't save the metadata file after setting the SHAs cause we do that when
+    // the sync is fully commited at the end.
+    // TODO: Understand whether it's a problem we don't revert the SHA setting in case of sync failure
+    await Promise.all(
+      Object.keys(treeFiles)
+        .filter((filePath: string) => treeFiles[filePath].content)
+        .map(async (filePath: string) => {
+          const newSha = await this.calculateSHA(filePath);
+          this.metadataStore.data.files[filePath].sha = newSha;
+        }),
+    );
 
     // Update manifest in list of new tree items
     delete treeFiles[`${this.vault.configDir}/${MANIFEST_FILE_NAME}`].sha;
@@ -664,7 +729,7 @@ export default class SyncManager {
     if (!(await this.vault.adapter.exists(fileFolder))) {
       await this.vault.adapter.mkdir(fileFolder);
     }
-    this.vault.adapter.writeBinary(
+    await this.vault.adapter.writeBinary(
       normalizedPath,
       base64ToArrayBuffer(blob.content),
     );
