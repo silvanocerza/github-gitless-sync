@@ -446,10 +446,17 @@ export default class SyncManager {
           remoteFile.sha !== localFile.sha;
         const localFileHasBeenModifiedSinceLastSync =
           actualLocalSHA !== localFile.sha;
-
+        // This is an unlikely case. If the user manually edits
+        // the local file so that's identical to the remote one,
+        // but the local metadata SHA is different we don't want
+        // to show a conflict.
+        // Since that would show two identical files.
+        // Checking for this prevents showing a non conflict to the user.
+        const actualFilesAreDifferent = remoteFile.sha !== actualLocalSHA;
         if (
           remoteFileHasBeenModifiedSinceLastSync &&
-          localFileHasBeenModifiedSinceLastSync
+          localFileHasBeenModifiedSinceLastSync &&
+          actualFilesAreDifferent
         ) {
           return filePath;
         }
