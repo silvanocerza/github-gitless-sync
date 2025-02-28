@@ -12,6 +12,7 @@ import MetadataStore, {
 import EventsListener from "./events-listener";
 import { GitHubSyncSettings } from "./settings/settings";
 import Logger from "./logger";
+import { decodeBase64String } from "./utils";
 
 interface SyncAction {
   type: "upload" | "download" | "delete_local" | "delete_remote";
@@ -299,7 +300,9 @@ export default class SyncManager {
     }
 
     const blob = await this.client.getBlob(manifest.sha);
-    const remoteMetadata: Metadata = JSON.parse(atob(blob.content));
+    const remoteMetadata: Metadata = JSON.parse(
+      decodeBase64String(blob.content),
+    );
 
     const conflicts = await this.findConflicts(remoteMetadata.files);
 
@@ -464,7 +467,7 @@ export default class SyncManager {
               const res = await this.client.getBlob(
                 filesMetadata[filePath].sha!,
               );
-              return atob(res.content);
+              return decodeBase64String(res.content);
             })(),
             await this.vault.adapter.read(normalizePath(filePath)),
           ]);
