@@ -19,13 +19,13 @@ interface SyncAction {
 }
 
 export interface ConflictFile {
-  filename: string;
+  filePath: string;
   remoteContent: string;
   localContent: string;
 }
 
 export interface ConflictResolution {
-  filename: string;
+  filePath: string;
   content: string;
 }
 
@@ -319,7 +319,7 @@ export default class SyncManager {
       conflictResolutions = await this.onConflicts(conflicts);
       conflictActions = conflictResolutions.map(
         (resolution: ConflictResolution) => {
-          return { type: "upload", filePath: resolution.filename };
+          return { type: "upload", filePath: resolution.filePath };
         },
       );
     }
@@ -363,7 +363,7 @@ export default class SyncManager {
           case "upload": {
             const normalizedPath = normalizePath(action.filePath);
             const resolution = conflictResolutions.find(
-              (c: ConflictResolution) => c.filename === action.filePath,
+              (c: ConflictResolution) => c.filePath === action.filePath,
             );
             // If the file was conflicting we need to read the content from the
             // conflict resolution instead of reading it from file since at this point
@@ -414,7 +414,7 @@ export default class SyncManager {
   /**
    * Finds conflicts between local and remote files.
    * @param filesMetadata Remote files metadata
-   * @returns List of object containing filename, remote and local content of conflicting files
+   * @returns List of object containing file path, remote and local content of conflicting files
    */
   async findConflicts(filesMetadata: {
     [key: string]: FileMetadata;
@@ -469,7 +469,7 @@ export default class SyncManager {
             await this.vault.adapter.read(normalizePath(filePath)),
           ]);
           return {
-            filename: filePath,
+            filePath,
             remoteContent,
             localContent,
           };
@@ -652,7 +652,7 @@ export default class SyncManager {
     // just before pushing to remote.
     // We're going to update the local content when the sync is successful.
     conflictResolutions.forEach((resolution) => {
-      this.metadataStore.data.files[resolution.filename].lastModified =
+      this.metadataStore.data.files[resolution.filePath].lastModified =
         syncTime;
     });
 
@@ -699,13 +699,13 @@ export default class SyncManager {
     // Update the local content of all files that had conflicts we resolved
     await Promise.all(
       conflictResolutions.map(async (resolution) => {
-        await this.vault.adapter.write(resolution.filename, resolution.content);
+        await this.vault.adapter.write(resolution.filePath, resolution.content);
         // Even though we set the last modified timestamp for all files with conflicts
         // just before pushing the changes to remote we do it here again because the
         // write right above would overwrite that.
         // Since we want to keep the sync timestamp for this file to avoid future conflicts
         // we update it again.
-        this.metadataStore.data.files[resolution.filename].lastModified =
+        this.metadataStore.data.files[resolution.filePath].lastModified =
           syncTime;
       }),
     );

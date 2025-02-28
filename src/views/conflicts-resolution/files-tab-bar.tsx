@@ -12,17 +12,17 @@ const FilesTabBar: React.FC<FilesTabBarProps> = ({
   currentFile,
   setCurrentFileIndex: setCurrentFile,
 }) => {
-  const createTab = (filename: string, index: number) => {
+  const createTab = (filePath: string, index: number) => {
     return (
       <div
-        key={filename}
-        className={`workspace-tab-header tappable ${filename === currentFile ? "is-active mod-active" : ""}`}
-        aria-label={filename}
+        key={filePath}
+        className={`workspace-tab-header tappable ${filePath === currentFile ? "is-active mod-active" : ""}`}
+        aria-label={filePath}
         data-tooltip-delay="300"
         onClick={() => setCurrentFile(index)}
       >
         <div className="workspace-tab-header-inner">
-          <div>{filename}</div>
+          <div>{filePath}</div>
         </div>
       </div>
     );

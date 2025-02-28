@@ -70,7 +70,7 @@ export class ConflictsResolutionView extends ItemView {
         const newResolvedConflicts = [
           ...resolvedConflicts,
           {
-            filename: currentFile!.filename,
+            filePath: currentFile!.filePath,
             content: currentFile!.localContent,
           },
         ];
@@ -127,8 +127,8 @@ export class ConflictsResolutionView extends ItemView {
             ) : (
               <>
                 <FilesTabBar
-                  files={files.map((f) => f.filename)}
-                  currentFile={currentFile?.filename || ""}
+                  files={files.map((f) => f.filePath)}
+                  currentFile={currentFile?.filePath || ""}
                   setCurrentFileIndex={setCurrentFileIndex}
                 />
                 <DiffView
