@@ -211,7 +211,24 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
             if (value) {
               this.plugin.showSyncRibbonIcon();
             } else {
-              this.plugin.hideUploadModifiedFilesRibbonIcon();
+              this.plugin.hideSyncRibbonIcon();
+            }
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Show conflicts view button")
+      .setDesc("Displays a ribbon button that opens the conflicts view")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.showConflictsRibbonButton)
+          .onChange((value) => {
+            this.plugin.settings.showConflictsRibbonButton = value;
+            this.plugin.saveSettings();
+            if (value) {
+              this.plugin.showConflictsRibbonIcon();
+            } else {
+              this.plugin.hideConflictsRibbonIcon();
             }
           });
       });

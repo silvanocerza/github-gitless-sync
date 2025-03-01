@@ -11,6 +11,7 @@ export interface GitHubSyncSettings {
   conflictHandling: "ignore" | "ask" | "overwrite";
   showStatusBarItem: boolean;
   showSyncRibbonButton: boolean;
+  showConflictsRibbonButton: boolean;
   enableLogging: boolean;
 }
 
@@ -27,5 +28,6 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   conflictHandling: "overwrite",
   showStatusBarItem: true,
   showSyncRibbonButton: true,
+  showConflictsRibbonButton: true,
   enableLogging: true,
 };

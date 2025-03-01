@@ -21,7 +21,8 @@ export default class GitHubSyncPlugin extends Plugin {
   logger: Logger;
 
   statusBarItem: HTMLElement | null = null;
-  uploadModifiedFilesRibbonIcon: HTMLElement | null = null;
+  syncRibbonIcon: HTMLElement | null = null;
+  conflictsRibbonIcon: HTMLElement | null = null;
 
   activeLeafChangeListener: EventRef | null = null;
   vaultCreateListener: EventRef | null = null;
@@ -80,16 +81,13 @@ export default class GitHubSyncPlugin extends Plugin {
   async onload() {
     await this.loadSettings();
 
+    this.logger = new Logger(this.app.vault, this.settings.enableLogging);
+    this.logger.init();
+
     this.registerView(
       CONFLICTS_RESOLUTION_VIEW_TYPE,
       (leaf) => new ConflictsResolutionView(leaf, this, this.conflicts),
     );
-    this.addRibbonIcon("merge", "Open sync conflicts resolution", async () => {
-      await this.activateView();
-      this.getConflictsView()?.setConflictFiles(this.conflicts);
-    });
-    this.logger = new Logger(this.app.vault, this.settings.enableLogging);
-    this.logger.init();
 
     this.addSettingTab(new GitHubSyncSettingsTab(this.app, this));
 
@@ -118,6 +116,10 @@ export default class GitHubSyncPlugin extends Plugin {
         this.showStatusBarItem();
       }
 
+      if (this.settings.showConflictsRibbonButton) {
+        this.showConflictsRibbonIcon();
+      }
+
       if (this.settings.showSyncRibbonButton) {
         this.showSyncRibbonIcon();
       }
@@ -129,6 +131,14 @@ export default class GitHubSyncPlugin extends Plugin {
       repeatable: false,
       icon: "refresh-cw",
       callback: this.sync.bind(this),
+    });
+
+    this.addCommand({
+      id: "merge",
+      name: "Open sync conflicts view",
+      repeatable: false,
+      icon: "refresh-cw",
+      callback: this.openConflictsView.bind(this),
     });
   }
 
@@ -208,19 +218,40 @@ export default class GitHubSyncPlugin extends Plugin {
   }
 
   showSyncRibbonIcon() {
-    if (this.uploadModifiedFilesRibbonIcon) {
+    if (this.syncRibbonIcon) {
       return;
     }
-    this.uploadModifiedFilesRibbonIcon = this.addRibbonIcon(
+    this.syncRibbonIcon = this.addRibbonIcon(
       "refresh-cw",
       "Sync with GitHub",
       this.sync.bind(this),
     );
   }
 
-  hideUploadModifiedFilesRibbonIcon() {
-    this.uploadModifiedFilesRibbonIcon?.remove();
-    this.uploadModifiedFilesRibbonIcon = null;
+  hideSyncRibbonIcon() {
+    this.syncRibbonIcon?.remove();
+    this.syncRibbonIcon = null;
+  }
+
+  showConflictsRibbonIcon() {
+    if (this.conflictsRibbonIcon) {
+      return;
+    }
+    this.conflictsRibbonIcon = this.addRibbonIcon(
+      "merge",
+      "Open sync conflicts view",
+      this.openConflictsView.bind(this),
+    );
+  }
+
+  hideConflictsRibbonIcon() {
+    this.conflictsRibbonIcon?.remove();
+    this.conflictsRibbonIcon = null;
+  }
+
+  async openConflictsView() {
+    await this.activateView();
+    this.getConflictsView()?.setConflictFiles(this.conflicts);
   }
 
   async onConflicts(conflicts: ConflictFile[]): Promise<ConflictResolution[]> {
