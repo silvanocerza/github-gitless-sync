@@ -177,6 +177,7 @@ const ActionsGutter: React.FC<ActionsGutterProps> = ({
         height: "100%",
         overflow: "hidden",
         position: "relative",
+        backgroundColor: "var(--background-secondary)",
       }}
     >
       <svg

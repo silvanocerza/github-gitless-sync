@@ -1,4 +1,4 @@
-import { IconName, ItemView, WorkspaceLeaf } from "obsidian";
+import { IconName, ItemView, Menu, WorkspaceLeaf } from "obsidian";
 import { Root, createRoot } from "react-dom/client";
 import DiffView from "./component";
 import GitHubSyncPlugin from "src/main";
@@ -46,6 +46,8 @@ export class ConflictsResolutionView extends ItemView {
 
   private render(conflicts: ConflictFile[]) {
     if (!this.root) {
+      // Hides the navigation header
+      (this.containerEl.children[0] as HTMLElement).style.display = "none";
       const container = this.containerEl.children[1];
       container.empty();
       // We don't want any padding, the DiffView component will handle that

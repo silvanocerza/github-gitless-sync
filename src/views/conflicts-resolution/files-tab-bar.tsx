@@ -17,14 +17,25 @@ const FilesTabBar: React.FC<FilesTabBarProps> = ({
       <div
         key={filePath}
         style={{
+          content: "none",
           maxWidth: "6rem",
         }}
-        className={`workspace-tab-header tappable ${filePath === currentFile ? "is-active mod-active" : ""}`}
+        className={`workspace-tab-header tappable`}
         aria-label={filePath}
         data-tooltip-delay="300"
         onClick={() => setCurrentFile(index)}
       >
-        <div className="workspace-tab-header-inner">
+        <div
+          style={{
+            color:
+              filePath === currentFile ? "var(--tab-text-color-focused)" : "",
+            backgroundColor:
+              filePath === currentFile
+                ? "var(--background-modifier-hover)"
+                : "",
+          }}
+          className="workspace-tab-header-inner"
+        >
           <div
             style={{
               textOverflow: "ellipsis",
@@ -48,7 +59,7 @@ const FilesTabBar: React.FC<FilesTabBarProps> = ({
     <div
       style={{
         display: "flex",
-        backgroundColor: "var(--tab-container-background)",
+        backgroundColor: "var(--background-primary)",
         height: "var(--header-height)",
         borderBottom: "var(--tab-outline-width) solid var(--tab-outline-color)",
         flex: "0 0 auto",

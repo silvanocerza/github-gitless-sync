@@ -69,7 +69,7 @@ export default class GitHubSyncPlugin extends Plugin {
     if (leaves.length > 0) {
       leaf = leaves[0];
     } else {
-      leaf = workspace.getRightLeaf(false)!;
+      leaf = workspace.getLeaf(false)!;
       await leaf.setViewState({
         type: CONFLICTS_RESOLUTION_VIEW_TYPE,
         active: true,
