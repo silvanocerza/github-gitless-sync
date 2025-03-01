@@ -31,7 +31,7 @@ interface DiffViewProps {
   onConflictResolved: () => void;
 }
 
-const DiffView: React.FC<DiffViewProps> = ({
+const SplitDiffView: React.FC<DiffViewProps> = ({
   oldText,
   newText,
   onOldTextChange,
@@ -176,4 +176,4 @@ const DiffView: React.FC<DiffViewProps> = ({
   );
 };
 
-export default DiffView;
+export default SplitDiffView;

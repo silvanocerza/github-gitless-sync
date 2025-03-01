@@ -1,6 +1,6 @@
 import { IconName, ItemView, Menu, WorkspaceLeaf } from "obsidian";
 import { Root, createRoot } from "react-dom/client";
-import DiffView from "./component";
+import SplitDiffView from "./split-diff-view";
 import GitHubSyncPlugin from "src/main";
 import * as React from "react";
 import FilesTabBar from "./files-tab-bar";
@@ -133,7 +133,7 @@ export class ConflictsResolutionView extends ItemView {
                   currentFile={currentFile?.filePath || ""}
                   setCurrentFileIndex={setCurrentFileIndex}
                 />
-                <DiffView
+                <SplitDiffView
                   oldText={currentFile?.remoteContent || ""}
                   newText={currentFile?.localContent || ""}
                   onOldTextChange={(content: string) => {
