@@ -39,6 +39,18 @@ export type BlobFile = {
   encoding: string;
 };
 
+/**
+ * Custom error to make some stuff easier
+ */
+class GithubAPIError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
 export default class GithubClient {
   constructor(
     private settings: GitHubSyncSettings,
@@ -66,7 +78,10 @@ export default class GithubClient {
     });
     if (res.status < 200 || res.status >= 400) {
       await this.logger.error("Failed to get repo content", res);
-      throw new Error(`Failed to get repo content, status ${res.status}`);
+      throw new GithubAPIError(
+        res.status,
+        `Failed to get repo content, status ${res.status}`,
+      );
     }
     const files = res.json.tree
       .filter((file: GetTreeResponseItem) => file.type === "blob")
@@ -90,7 +105,10 @@ export default class GithubClient {
     });
     if (res.status < 200 || res.status >= 400) {
       await this.logger.error("Failed to create tree", res);
-      throw new Error(`Failed to create tree, status ${res.status}`);
+      throw new GithubAPIError(
+        res.status,
+        `Failed to create tree, status ${res.status}`,
+      );
     }
     return res.json.sha;
   }
@@ -109,7 +127,10 @@ export default class GithubClient {
     });
     if (res.status < 200 || res.status >= 400) {
       await this.logger.error("Failed to create commit", res);
-      throw new Error(`Failed to create commit, status ${res.status}`);
+      throw new GithubAPIError(
+        res.status,
+        `Failed to create commit, status ${res.status}`,
+      );
     }
     return res.json.sha;
   }
@@ -122,7 +143,10 @@ export default class GithubClient {
     });
     if (res.status < 200 || res.status >= 400) {
       await this.logger.error("Failed to get branch head sha", res);
-      throw new Error(`Failed to get branch head sha, status ${res.status}`);
+      throw new GithubAPIError(
+        res.status,
+        `Failed to get branch head sha, status ${res.status}`,
+      );
     }
     return res.json.object.sha;
   }
@@ -139,7 +163,10 @@ export default class GithubClient {
     });
     if (res.status < 200 || res.status >= 400) {
       await this.logger.error("Failed to update branch head sha", res);
-      throw new Error(`Failed to update branch head sha, status ${res.status}`);
+      throw new GithubAPIError(
+        res.status,
+        `Failed to update branch head sha, status ${res.status}`,
+      );
     }
   }
 
@@ -155,7 +182,10 @@ export default class GithubClient {
     });
     if (res.status < 200 || res.status >= 400) {
       await this.logger.error("Failed to get blob", res);
-      throw new Error(`Failed to get blob, status ${res.status}`);
+      throw new GithubAPIError(
+        res.status,
+        `Failed to get blob, status ${res.status}`,
+      );
     }
     return res.json;
   }
@@ -181,7 +211,10 @@ export default class GithubClient {
     });
     if (res.status < 200 || res.status >= 400) {
       await this.logger.error("Failed to create file", res);
-      throw new Error(`Failed to create file, status ${res.status}`);
+      throw new GithubAPIError(
+        res.status,
+        `Failed to create file, status ${res.status}`,
+      );
     }
   }
 }
