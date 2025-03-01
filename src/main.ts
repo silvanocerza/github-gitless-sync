@@ -4,11 +4,11 @@ import {
   Platform,
   WorkspaceLeaf,
   normalizePath,
+  Notice,
 } from "obsidian";
 import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
 import GitHubSyncSettingsTab from "./settings/tab";
 import SyncManager, { ConflictFile, ConflictResolution } from "./sync-manager";
-import { OnboardingDialog } from "./views/onboarding/view";
 import Logger from "./logger";
 import {
   ConflictsResolutionView,
@@ -41,14 +41,13 @@ export default class GitHubSyncPlugin extends Plugin {
   private conflicts: ConflictFile[] = [];
 
   async onUserEnable() {
-    if (Platform.isMobile) {
-      // TODO: Implement onboarding for mobile
-      this.settings.firstStart = false;
-      this.saveSettings();
-      return;
-    }
-    if (this.settings.firstStart) {
-      new OnboardingDialog(this).open();
+    if (
+      this.settings.githubToken === "" ||
+      this.settings.githubOwner === "" ||
+      this.settings.githubRepo === "" ||
+      this.settings.githubBranch === ""
+    ) {
+      new Notice("Go to settings to configure syncing");
     }
   }
 
@@ -129,11 +128,28 @@ export default class GitHubSyncPlugin extends Plugin {
       name: "Sync with GitHub",
       repeatable: false,
       icon: "refresh-cw",
-      callback: async () => {
-        await this.syncManager.sync();
-        this.updateStatusBarItem();
-      },
+      callback: this.sync.bind(this),
     });
+  }
+
+  async sync() {
+    if (
+      this.settings.githubToken === "" ||
+      this.settings.githubOwner === "" ||
+      this.settings.githubRepo === "" ||
+      this.settings.githubBranch === ""
+    ) {
+      new Notice("Sync plugin not configured");
+      return;
+    }
+    if (this.settings.firstSync) {
+      await this.syncManager.firstSync();
+      this.settings.firstSync = false;
+      this.saveSettings();
+    } else {
+      await this.syncManager.sync();
+    }
+    this.updateStatusBarItem();
   }
 
   async onunload() {
@@ -198,10 +214,7 @@ export default class GitHubSyncPlugin extends Plugin {
     this.uploadModifiedFilesRibbonIcon = this.addRibbonIcon(
       "refresh-cw",
       "Sync with GitHub",
-      async () => {
-        await this.syncManager.sync();
-        this.updateStatusBarItem();
-      },
+      this.sync.bind(this),
     );
   }
 

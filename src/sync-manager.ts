@@ -87,17 +87,24 @@ export default class SyncManager {
       return;
     }
 
+    const notice = new Notice("Syncing...");
     this.syncing = true;
     try {
-      this.firstSyncImpl();
-    } finally {
-      this.syncing = false;
+      await this.firstSyncImpl();
+      // Shown only if sync doesn't fail
+      new Notice("Sync successful", 5000);
+    } catch (err) {
+      // Show the error to the user, it's not automatically dismissed to make sure
+      // the user sees it.
+      new Notice(`Error syncing. ${err}`);
     }
+    this.syncing = false;
+    notice.hide();
   }
 
   private async firstSyncImpl() {
     await this.logger.info("Starting first sync");
-    let repositoryIsBare = false;
+    let repositoryIsEmpty = false;
     let res: RepoContent;
     let files: {
       [key: string]: GetTreeResponseItem;
@@ -108,16 +115,20 @@ export default class SyncManager {
       files = res.files;
       treeSha = res.sha;
     } catch (err) {
-      if (err.status !== 409) {
+      // 409 is returned in case the remote repo has been just created
+      // and contains no files.
+      // 404 instead is returned in case there are no files.
+      // Either way we can handle both by commiting a new empty manifest.
+      if (err.status !== 409 && err.status !== 404) {
         this.syncing = false;
         throw err;
       }
       // The repository is bare, meaning it has no tree, no commits and no branches
-      repositoryIsBare = true;
+      repositoryIsEmpty = true;
     }
 
-    if (repositoryIsBare) {
-      await this.logger.info("Remote repository is bare");
+    if (repositoryIsEmpty) {
+      await this.logger.info("Remote repository is empty");
       // Since the repository is completely empty we need to create a first commit.
       // We can't create that by going throught the normal sync process since the
       // API doesn't let us create a new tree when the repo is empty.
@@ -126,7 +137,7 @@ export default class SyncManager {
       await this.client.createFile(
         `${this.vault.configDir}/${MANIFEST_FILE_NAME}`,
         "",
-        "Initial commit",
+        "First sync",
       );
       // Now get the repo content again cause we know for sure it will return a
       // valid sha that we can use to create the first sync commit.
@@ -135,14 +146,13 @@ export default class SyncManager {
       treeSha = res.sha;
     }
 
-    const remoteRepoIsEmpty = Object.keys(files).length === 0;
     const vaultIsEmpty = await this.vaultIsEmpty();
 
-    if (!remoteRepoIsEmpty && !vaultIsEmpty) {
+    if (!repositoryIsEmpty && !vaultIsEmpty) {
       // Both have files, we can't sync, show error
       await this.logger.error("Both remote and local have files, can't sync");
       throw new Error("Both remote and local have files, can't sync");
-    } else if (remoteRepoIsEmpty || repositoryIsBare) {
+    } else if (repositoryIsEmpty) {
       // Remote has no files and no manifest, let's just upload whatever we have locally.
       // This is fine even if the vault is empty.
       // The most important thing at this point is that the remote manifest is created.
