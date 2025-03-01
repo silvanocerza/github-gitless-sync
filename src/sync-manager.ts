@@ -328,13 +328,37 @@ export default class SyncManager {
 
     if (conflicts.length > 0) {
       await this.logger.warn("Found conflicts", conflicts);
-      // Here we block the sync process until the user has resolved all the conflicts
-      conflictResolutions = await this.onConflicts(conflicts);
-      conflictActions = conflictResolutions.map(
-        (resolution: ConflictResolution) => {
-          return { type: "upload", filePath: resolution.filePath };
-        },
-      );
+      if (this.settings.conflictHandling === "ask") {
+        // Here we block the sync process until the user has resolved all the conflicts
+        conflictResolutions = await this.onConflicts(conflicts);
+        conflictActions = conflictResolutions.map(
+          (resolution: ConflictResolution) => {
+            return { type: "upload", filePath: resolution.filePath };
+          },
+        );
+      } else if (this.settings.conflictHandling === "overwriteLocal") {
+        // The user explicitly wants to always overwrite the local file
+        // in case of conflicts so we just download the remote file to solve it
+
+        // It's not necessary to set conflict resolutions as the content the
+        // user expect must be the content of the remote file with no changes.
+        conflictActions = conflictResolutions.map(
+          (resolution: ConflictResolution) => {
+            return { type: "download", filePath: resolution.filePath };
+          },
+        );
+      } else if (this.settings.conflictHandling === "overwriteRemote") {
+        // The user explicitly wants to always overwrite the remote file
+        // in case of conflicts so we just upload the remote file to solve it.
+
+        // It's not necessary to set conflict resolutions as the content the
+        // user expect must be the content of the local file with no changes.
+        conflictActions = conflictResolutions.map(
+          (resolution: ConflictResolution) => {
+            return { type: "upload", filePath: resolution.filePath };
+          },
+        );
+      }
     }
 
     const actions: SyncAction[] = [

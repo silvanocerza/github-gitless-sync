@@ -163,16 +163,15 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
       });
 
     const conflictHandlingOptions = {
-      ignore: "Ignore remote file",
+      overwriteLocal: "Overwrite local file",
       ask: "Ask",
-      overwrite: "Overwrite local file",
+      overwriteRemote: "Overwrite remote file",
     };
     new Setting(containerEl)
       .setName("Conflict handling")
       .setDesc(
         `What to do in case remote and local files conflict
-        when downloading from GitHub repository
-        `,
+        when downloading from GitHub repository`,
       )
       .addDropdown((dropdown) => {
         dropdown
@@ -182,8 +181,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
             this.plugin.settings.conflictHandling = value;
             await this.plugin.saveSettings();
           });
-      })
-      .setDisabled(true);
+      });
 
     containerEl.createEl("h2", { text: "Interface" });
 
