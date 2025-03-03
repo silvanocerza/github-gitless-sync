@@ -3,6 +3,7 @@ import { Root, createRoot } from "react-dom/client";
 import GitHubSyncPlugin from "src/main";
 import { ConflictFile, ConflictResolution } from "src/sync-manager";
 import DesktopApp from "./desktop-app";
+import MobileApp from "./mobile-app";
 
 export const CONFLICTS_RESOLUTION_VIEW_TYPE = "conflicts-resolution-view";
 
@@ -54,10 +55,16 @@ export class ConflictsResolutionView extends ItemView {
     }
 
     this.root.render(
-      <DesktopApp
-        initialFiles={conflicts}
-        onResolveAllConflicts={this.resolveAllConflicts.bind(this)}
-      />,
+      <>
+        <MobileApp
+          initialFiles={conflicts}
+          onResolveAllConflicts={this.resolveAllConflicts.bind(this)}
+        />
+        <DesktopApp
+          initialFiles={conflicts}
+          onResolveAllConflicts={this.resolveAllConflicts.bind(this)}
+        />
+      </>,
     );
   }
 
