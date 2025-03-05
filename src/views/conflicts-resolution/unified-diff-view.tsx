@@ -24,159 +24,88 @@ interface UnifiedDiffViewProps {
   onConflictResolved: () => void;
 }
 
-interface LineMapping {
-  oldLine: number | null;
-  finalLine: number;
-  newLine: number | null;
-}
-
 const createUnifiedDocument = (
   oldText: string,
   newText: string,
   diffChunks: DiffChunk[],
-): { doc: string; mapping: LineMapping[] } => {
+): { doc: string; lineRanges: ConflictRange[] } => {
   const sortedChunks = [...diffChunks].sort(
     (a, b) => a.startLeftLine - b.startLeftLine,
   );
 
-  let lineMappings = [];
+  const oldLines = oldText.split(/\r?\n/);
+  const newLines = newText.split(/\r?\n/);
 
-  let result = [];
+  let result: string[] = [];
+  let lineRanges: ConflictRange[] = [];
+  let linePosition = 0;
+  let currentRange: ConflictRange | null = null;
+
   let oldTextLine = 1;
   let newTextLine = 1;
 
-  const oldLines = oldText.split(/\r?\n/);
-  const newLines = newText.split(/\r?\n/);
-  let chunkIndex = 0;
-  // Used to check if a line is in a chunk
-  const isInChunk = (
-    line: number,
-    chunk: DiffChunk | undefined,
-    side: "left" | "right",
-  ) => {
-    if (!chunk) {
-      return false;
+  const addLine = (line: string, source: "old" | "new" | "both") => {
+    result.push(line);
+
+    const startPos = linePosition;
+    const endPos = linePosition + line.length;
+
+    if (currentRange && currentRange.source === source) {
+      // Extend existing range
+      currentRange.to = endPos;
+    } else {
+      // Create new range
+      if (currentRange) {
+        lineRanges.push(currentRange);
+      }
+      currentRange = { from: startPos, to: endPos, source };
     }
-    if (side === "left") {
-      return line >= chunk.startLeftLine && line < chunk.endLeftLine;
-    } else if (side === "right") {
-      return line >= chunk.startRightLine && line < chunk.endRightLine;
-    }
+
+    // Move position to start of next line
+    linePosition = endPos + 1; // +1 for newline
   };
 
-  let closestChunk = sortedChunks[chunkIndex];
-  while (oldTextLine <= oldLines.length || newTextLine <= newLines.length) {
-    const leftLineInChunk = isInChunk(oldTextLine, closestChunk, "left");
-    const rightLineInChunk = isInChunk(newTextLine, closestChunk, "right");
-
-    if (!leftLineInChunk && !rightLineInChunk) {
-      // Neither line is part of a chunk, they must be identical
-      if (oldLines[oldTextLine - 1] !== newLines[newTextLine - 1]) {
-        // TODO: Remove this, just verifying stuff works
-        throw Error("Lines are different");
-      }
-
-      result.push(oldLines[oldTextLine - 1]);
-      lineMappings.push({
-        oldLine: oldTextLine,
-        finalLine: result.length,
-        newLine: newTextLine,
-      });
-      oldTextLine += 1;
-      newTextLine += 1;
-      continue;
+  // Process each chunk
+  for (const chunk of sortedChunks) {
+    // Add common lines before the chunk
+    while (
+      oldTextLine < chunk.startLeftLine &&
+      newTextLine < chunk.startRightLine
+    ) {
+      addLine(oldLines[oldTextLine - 1], "both");
+      oldTextLine++;
+      newTextLine++;
     }
 
-    if (leftLineInChunk && !rightLineInChunk) {
-      // Old text is in a chunk, new text is not
-      // We add the old text line to the result
-      result.push(oldLines[oldTextLine - 1]);
-      lineMappings.push({
-        oldLine: oldTextLine,
-        finalLine: result.length,
-        newLine: null,
-      });
-      oldTextLine += 1;
-      continue;
+    // Add removed lines (from old text)
+    for (let i = oldTextLine; i < chunk.endLeftLine; i++) {
+      addLine(oldLines[i - 1], "old");
     }
 
-    if (!leftLineInChunk && rightLineInChunk) {
-      // New text is in a chunk, old text is not
-      // We add the new text line to the result
-      result.push(newLines[newTextLine - 1]);
-      lineMappings.push({
-        oldLine: null,
-        finalLine: result.length,
-        newLine: newTextLine,
-      });
-      newTextLine += 1;
-      continue;
+    // Add added lines (from new text)
+    for (let i = newTextLine; i < chunk.endRightLine; i++) {
+      addLine(newLines[i - 1], "new");
     }
 
-    if (leftLineInChunk && rightLineInChunk) {
-      // Both lines are in a chunk.
-      // First we add all the lines from the old text
-
-      let oldLinesToAdd = closestChunk.endLeftLine - closestChunk.startLeftLine;
-
-      while (oldLinesToAdd !== 0) {
-        result.push(oldLines[oldTextLine - 1]);
-        lineMappings.push({
-          oldLine: oldTextLine,
-          finalLine: result.length,
-          newLine: null,
-        });
-        oldTextLine += 1;
-        oldLinesToAdd -= 1;
-      }
-
-      // Then we add all the lines from the new text
-      let newLinesToAdd =
-        closestChunk.endRightLine - closestChunk.startRightLine;
-
-      while (newLinesToAdd !== 0) {
-        result.push(newLines[newTextLine - 1]);
-        lineMappings.push({
-          oldLine: null,
-          finalLine: result.length,
-          newLine: newTextLine,
-        });
-        newTextLine += 1;
-        newLinesToAdd -= 1;
-      }
-
-      // We consumed the chunk, get the next one
-      chunkIndex += 1;
-      closestChunk = sortedChunks[chunkIndex];
-    }
+    // Update line pointers
+    oldTextLine = chunk.endLeftLine;
+    newTextLine = chunk.endRightLine;
   }
 
-  return { doc: result.join("\n"), mapping: lineMappings };
-};
+  // Add remaining common lines after the last chunk
+  while (oldTextLine <= oldLines.length && newTextLine <= newLines.length) {
+    if (oldTextLine > oldLines.length || newTextLine > newLines.length) break;
+    addLine(oldLines[oldTextLine - 1], "both");
+    oldTextLine++;
+    newTextLine++;
+  }
 
-const createInitialRanges = (
-  doc: string,
-  mappings: LineMapping[],
-): ConflictRange[] => {
-  const lines = doc.split("\n");
-  return mappings.map((m) => {
-    // Calculate line positions directly from text
-    const lineStartPos = lines.slice(0, m.finalLine - 1).join("\n").length;
-    // Add 1 for the newline except for first line
-    const from = m.finalLine > 1 ? lineStartPos + 1 : 0;
-    const to = from + lines[m.finalLine - 1].length;
+  // Add the final range if there is one
+  if (currentRange) {
+    lineRanges.push(currentRange);
+  }
 
-    return {
-      from,
-      to,
-      source:
-        m.oldLine !== null && m.newLine !== null
-          ? "both"
-          : m.oldLine !== null
-            ? "old"
-            : "new",
-    };
-  });
+  return { doc: result.join("\n"), lineRanges };
 };
 
 const createRangesStateField = (
@@ -251,14 +180,12 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
   onConflictResolved,
 }) => {
   const diffChunks = diff(initialOldText, initialNewText);
-  const { doc, mapping } = createUnifiedDocument(
+  const { doc, lineRanges } = createUnifiedDocument(
     initialOldText,
     initialNewText,
     diffChunks,
   );
-
-  const initialRanges = createInitialRanges(doc, mapping);
-  const conflictRangesField = createRangesStateField(initialRanges);
+  const conflictRangesField = createRangesStateField(lineRanges);
 
   const extensions = [
     conflictRangesField,
