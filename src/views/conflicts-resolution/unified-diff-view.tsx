@@ -119,19 +119,73 @@ const createRangesStateField = (
       }
 
       // Map all positions through the changes
-      const newRanges = ranges
+      let newRanges = ranges
         .map((range) => ({
           from: tr.changes.mapPos(range.from),
-          // mapPos by default tries to keep the new position close to the char
-          // before it.
-          // Since we need to know when a new line is added at the end of a range
-          // we set `assoc` to 1 so the new position is close to the char after it.
           to: tr.changes.mapPos(range.to, 1),
           source: range.source,
         }))
-        .filter((range) => range.from !== range.to); // Remove empty ranges
+        .filter((range) => range.from !== range.to);
 
-      return newRanges;
+      // Sort ranges by start position (leftmost first)
+      newRanges.sort((a, b) => a.from - b.from);
+
+      // Process ranges line by line
+      const lineToRangeMap = new Map(); // Maps line number to controlling range
+
+      // First pass: determine which range controls each line
+      for (const range of newRanges) {
+        const startLine = tr.newDoc.lineAt(range.from).number;
+        const endLine = tr.newDoc.lineAt(range.to).number;
+
+        for (let line = startLine; line <= endLine; line++) {
+          // If this line isn't claimed yet, the leftmost range (processed first) gets it
+          if (!lineToRangeMap.has(line)) {
+            lineToRangeMap.set(line, range);
+          }
+        }
+      }
+
+      // Second pass: merge ranges that control consecutive lines
+      const mergedRanges = [];
+      let currentRange = null;
+
+      // Process lines in order
+      const allLines = Array.from(lineToRangeMap.keys()).sort((a, b) => a - b);
+
+      for (const line of allLines) {
+        const rangeForLine = lineToRangeMap.get(line);
+
+        if (!currentRange) {
+          // Start a new merged range
+          currentRange = {
+            from: tr.newDoc.line(line).from,
+            to: tr.newDoc.line(line).to,
+            source: rangeForLine.source,
+          };
+        } else if (
+          currentRange.source === rangeForLine.source &&
+          line === tr.newDoc.lineAt(currentRange.to).number + 1
+        ) {
+          // Extend current range if it's the same source and consecutive line
+          currentRange.to = tr.newDoc.line(line).to;
+        } else {
+          // Finish current range and start a new one
+          mergedRanges.push(currentRange);
+          currentRange = {
+            from: tr.newDoc.line(line).from,
+            to: tr.newDoc.line(line).to,
+            source: rangeForLine.source,
+          };
+        }
+      }
+
+      // Add the last range
+      if (currentRange) {
+        mergedRanges.push(currentRange);
+      }
+
+      return mergedRanges;
     },
   });
 };
