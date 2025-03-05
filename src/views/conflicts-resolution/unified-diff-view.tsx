@@ -40,394 +40,254 @@ interface UnifiedDiffViewProps {
   onConflictResolved: () => void;
 }
 
-const decorateChunks = ViewPlugin.fromClass(
-  class {
-    deco: DecorationSet;
-    gutter: RangeSet<GutterMarker> | null;
-
-    constructor(view: EditorView) {
-      ({ deco: this.deco, gutter: this.gutter } = getChunkDeco(view));
-    }
-
-    update(update: ViewUpdate) {
-      if (
-        update.docChanged ||
-        update.viewportChanged ||
-        chunksChanged(update.startState, update.state)
-      ) {
-        ({ deco: this.deco, gutter: this.gutter } = getChunkDeco(update.view));
-      }
-    }
-  },
-  { decorations: (d) => d.deco },
-);
-
-function chunksChanged(s1: EditorState, s2: EditorState) {
-  return s1.field(ChunkField, false) != s2.field(ChunkField, false);
+interface LineMapping {
+  oldLine: number | null;
+  finalLine: number;
+  newLine: number | null;
 }
 
-const setChunks = StateEffect.define<readonly DiffChunk[]>();
+const createUnifiedDocument = (
+  oldText: string,
+  newText: string,
+  diffChunks: DiffChunk[],
+): { doc: string; mapping: LineMapping[] } => {
+  const sortedChunks = [...diffChunks].sort(
+    (a, b) => a.startLeftLine - b.startLeftLine,
+  );
 
-const ChunkField = StateField.define<readonly DiffChunk[]>({
-  create(state) {
-    return null as any;
-  },
-  update(current, tr) {
-    tr.effects.forEach((effect) => {
-      if (effect.is(setChunks)) {
-        current = effect.value;
-      }
-    });
-    return current;
-  },
-});
+  let lineMappings = [];
 
-const getChunkDeco = (view: EditorView) => {
-  const chunks = view.state.field(ChunkField);
-  const builder = new RangeSetBuilder<Decoration>();
-  const gutterBuilder = new RangeSetBuilder<GutterMarker>();
-  let { from, to } = view.viewport;
+  let result = [];
+  let oldTextLine = 1;
+  let newTextLine = 1;
 
-  const originalDocState = view.state.field(originalDoc);
-
-  // Add boundary checks to prevent errors when accessing lines
-  const fromPos = Math.max(0, Math.min(from, originalDocState.length));
-  const toPos = Math.max(0, Math.min(to, originalDocState.length));
-
-  const fromLine = fromPos > 0 ? originalDocState.lineAt(fromPos).number : 1;
-  const toLine = toPos > 0 ? originalDocState.lineAt(toPos).number : 1;
-
-  // const fromLine = originalDocState.lineAt(from).number;
-  // const toLine = originalDocState.lineAt(to).number;
-  // from = originalDocState.line(chunk.startLeftLine).from;
-  // to = originalDocState.line(chunk.endLeftLine - 1).to;
-
-  // const fromLine = view.state.doc.lineAt(from).number;
-  // const toLine = view.state.doc.lineAt(to).number;
-  chunks.forEach((chunk: DiffChunk) => {
-    if (chunk.startLeftLine >= toLine) {
-      return;
+  const oldLines = oldText.split(/\r?\n/);
+  const newLines = newText.split(/\r?\n/);
+  let chunkIndex = 0;
+  // Used to check if a line is in a chunk
+  const isInChunk = (
+    line: number,
+    chunk: DiffChunk | undefined,
+    side: "left" | "right",
+  ) => {
+    if (!chunk) {
+      return false;
     }
-
-    if (chunk.endLeftLine > fromLine) {
-      buildChunkDeco(chunk, view.state.doc, builder, gutterBuilder);
+    if (side === "left") {
+      return line >= chunk.startLeftLine && line < chunk.endLeftLine;
+    } else if (side === "right") {
+      return line >= chunk.startRightLine && line < chunk.endRightLine;
     }
-  });
-  return { deco: builder.finish(), gutter: gutterBuilder.finish() };
-};
-
-const changedLine = Decoration.line({ class: "cm-addedLine" });
-const deleted = Decoration.mark({ tagName: "del", class: "cm-deletedLine" });
-const changedLineGutterMarker = new (class extends GutterMarker {
-  elementClass = "cm-changedLineGutter";
-})();
-
-const buildChunkDeco = (
-  chunk: DiffChunk,
-  doc: Text,
-  builder: RangeSetBuilder<Decoration>,
-  gutterBuilder: RangeSetBuilder<GutterMarker>,
-) => {
-  // Using the char indexes makes it easier to handle decorations
-  // in the following parts
-  const from = doc.line(chunk.startRightLine).from;
-  const to = doc.line(chunk.endRightLine - 1).to;
-
-  if (from != to) {
-    builder.add(from, from, changedLine);
-    // builder.add(from, to, deleted);
-    gutterBuilder.add(from, from, changedLineGutterMarker);
-
-    for (
-      let iter = doc.iterRange(from, to - 1), pos = from;
-      !iter.next().done;
-
-    ) {
-      if (iter.lineBreak) {
-        pos++;
-        builder.add(pos, pos, changedLine);
-        if (gutterBuilder) {
-          gutterBuilder.add(pos, pos, changedLineGutterMarker);
-        }
-        continue;
-      }
-      pos = pos + iter.value.length;
-    }
-  }
-};
-
-/// The state effect used to signal changes in the original doc in a
-/// unified merge view.
-const updateOriginalDoc = StateEffect.define<{
-  doc: Text;
-  changes: ChangeSet;
-}>();
-
-/// Create an effect that, when added to a transaction on a unified
-/// merge view, will update the original document that's being compared against.
-function originalDocChangeEffect(
-  state: EditorState,
-  changes: ChangeSet,
-): StateEffect<{ doc: Text; changes: ChangeSet }> {
-  return updateOriginalDoc.of({
-    doc: changes.apply(getOriginalDoc(state)),
-    changes,
-  });
-}
-
-/// Get the original document from a unified merge editor's state.
-function getOriginalDoc(state: EditorState): Text {
-  return state.field(originalDoc);
-}
-
-const originalDoc = StateField.define<Text>({
-  create: () => Text.empty,
-  update(doc, tr) {
-    for (let e of tr.effects) if (e.is(updateOriginalDoc)) doc = e.value.doc;
-    return doc;
-  },
-});
-
-const DeletionWidgets: WeakMap<DiffChunk, Decoration> = new WeakMap();
-
-class DeletionWidget extends WidgetType {
-  dom: HTMLElement | null = null;
-  constructor(readonly buildDOM: (view: EditorView) => HTMLElement) {
-    super();
-  }
-  eq(other: DeletionWidget) {
-    return this.dom == other.dom;
-  }
-  toDOM(view: EditorView) {
-    return this.dom || (this.dom = this.buildDOM(view));
-  }
-}
-
-const deletionWidget = (state: EditorState, chunk: DiffChunk): Decoration => {
-  const known = DeletionWidgets.get(chunk);
-  if (known) {
-    return known;
-  }
-
-  // const buildDom = (view: EditorView): HTMLElement => {
-  //   // We're using document positions again, makes it easier to write the logic
-  //   const originalDocState = view.state.field(originalDoc);
-  //   let from = 0;
-  //   let to = 0;
-  //   try {
-  //     from = originalDocState.line(chunk.startLeftLine).from;
-  //     to = originalDocState.line(chunk.endLeftLine - 1).to;
-  //   } catch (e) {
-  //     console.log("Original document (left)", originalDocState.text);
-  //     console.log("Modified document (right)", view.state.doc.text);
-  //     console.log(
-  //       `Chunk left, start: ${chunk.startLeftLine}, end ${chunk.endLeftLine}`,
-  //     );
-  //     console.log(
-  //       `Chunk right, start: ${chunk.startRightLine}, end ${chunk.endRightLine}`,
-  //     );
-  //     throw e;
-  //   }
-  //   const text = originalDocState.sliceString(from, to);
-
-  //   const dom = document.createElement("div");
-  //   dom.className = "cm-deletedChunk";
-  //   // TODO: Add buttons here
-  //   if (from >= to) {
-  //     return dom;
-  //   }
-  //   const makeLine = () => {
-  //     let div = dom.appendChild(document.createElement("div"));
-  //     div.className = "cm-deletedLine";
-  //     return div.appendChild(document.createElement("del"));
-  //   };
-  //   let line: HTMLElement = makeLine();
-
-  //   const add = (from: number, to: number, cls: string) => {
-  //     for (let at = from; at < to; ) {
-  //       // Handle newline char
-  //       if (text.charAt(at) == "\n") {
-  //         if (!line.firstChild) {
-  //           line.appendChild(document.createElement("br"));
-  //         }
-  //         line = makeLine();
-  //         at++;
-  //         continue;
-  //       }
-  //       let nextStop = to;
-  //       const newline = text.indexOf("\n", at);
-  //       if (newline > -1 && newline < to) {
-  //         nextStop = newline;
-  //       }
-  //       if (nextStop > at) {
-  //         const textNode = document.createTextNode(text.slice(at, nextStop));
-  //         if (cls) {
-  //           const span = line.appendChild(document.createElement("span"));
-  //           span.className = cls;
-  //           span.appendChild(textNode);
-  //         } else {
-  //           line.appendChild(textNode);
-  //         }
-  //         at = nextStop;
-  //       }
-  //     }
-  //   };
-  //   add(0, text.length, "");
-  //   if (!line.firstChild) {
-  //     line.appendChild(document.createElement("br"));
-  //   }
-  //   return dom;
-  // };
-  //
-  const buildDom = (view: EditorView): HTMLElement => {
-    const originalDocState = view.state.field(originalDoc);
-    const dom = document.createElement("div");
-    dom.className = "cm-deletedLine cm-line";
-
-    // Validate chunk boundaries before accessing the document
-    if (chunk.endLeftLine > originalDocState.lines) {
-      console.warn("Invalid chunk bounds:", chunk);
-      return dom; // Return empty container if invalid
-    }
-
-    // Safely get positions
-    let from = originalDocState.line(chunk.startLeftLine).from;
-    let to = originalDocState.line(chunk.endLeftLine - 1).to;
-
-    // Exit early if nothing to display
-    if (from >= to) {
-      return dom;
-    }
-
-    const text = originalDocState.sliceString(from, to);
-
-    // Create DOM elements for deleted content
-    const makeLine = () => {
-      let div = dom.appendChild(document.createElement("div"));
-      // div.className = "cm-deletedLine";
-      return div.appendChild(document.createElement("del"));
-    };
-
-    let line = makeLine();
-
-    const add = (from: number, to: number, cls: string) => {
-      for (let at = from; at < to; ) {
-        if (text.charAt(at) == "\n") {
-          if (!line.firstChild) {
-            line.appendChild(document.createElement("br"));
-          }
-          line = makeLine();
-          at++;
-          continue;
-        }
-
-        let nextStop = to;
-        const newline = text.indexOf("\n", at);
-        if (newline > -1 && newline < to) {
-          nextStop = newline;
-        }
-
-        if (nextStop > at) {
-          const textNode = document.createTextNode(text.slice(at, nextStop));
-          if (cls) {
-            const span = line.appendChild(document.createElement("span"));
-            span.className = cls;
-            span.appendChild(textNode);
-          } else {
-            line.appendChild(textNode);
-          }
-          at = nextStop;
-        }
-      }
-    };
-
-    add(0, text.length, "");
-    if (!line.firstChild) {
-      line.appendChild(document.createElement("br"));
-    }
-
-    return dom;
   };
 
-  const deco = Decoration.widget({
-    block: true,
-    side: -1,
-    widget: new DeletionWidget(buildDom),
-  });
-  DeletionWidgets.set(chunk, deco);
-  return deco;
-};
+  let closestChunk = sortedChunks[chunkIndex];
+  while (oldTextLine <= oldLines.length || newTextLine <= newLines.length) {
+    const leftLineInChunk = isInChunk(oldTextLine, closestChunk, "left");
+    const rightLineInChunk = isInChunk(newTextLine, closestChunk, "right");
 
-const buildDeletedChunks = (state: EditorState) => {
-  let builder = new RangeSetBuilder<Decoration>();
-  state.field(ChunkField).forEach((chunk: DiffChunk) => {
-    const from = state.doc.line(
-      Math.min(state.doc.lines, chunk.startRightLine),
-    ).from;
-    builder.add(from, from, deletionWidget(state, chunk));
-  });
-
-  return builder.finish();
-};
-
-const deletedChunks = StateField.define<DecorationSet>({
-  create: (state) => buildDeletedChunks(state),
-  update(deco, tr) {
-    return tr.state.field(ChunkField, false) !=
-      tr.startState.field(ChunkField, false)
-      ? buildDeletedChunks(tr.state)
-      : deco;
-  },
-  provide: (f) => EditorView.decorations.from(f),
-});
-
-const addUnderline = StateEffect.define<{ from: number; to: number }>({
-  map: ({ from, to }, change) => ({
-    from: change.mapPos(from),
-    to: change.mapPos(to),
-  }),
-});
-
-const underlineField = StateField.define<DecorationSet>({
-  create() {
-    return Decoration.none;
-  },
-  update(underlines, tr) {
-    underlines = underlines.map(tr.changes);
-    for (let e of tr.effects)
-      if (e.is(addUnderline)) {
-        underlines = underlines.update({
-          add: [underlineMark.range(e.value.from, e.value.to)],
-        });
+    if (!leftLineInChunk && !rightLineInChunk) {
+      // Neither line is part of a chunk, they must be identical
+      if (oldLines[oldTextLine - 1] !== newLines[newTextLine - 1]) {
+        // TODO: Remove this, just verifying stuff works
+        throw Error("Lines are different");
       }
-    return underlines;
-  },
-  provide: (f) => EditorView.decorations.from(f),
-});
 
-const underlineTheme = EditorView.theme({
-  ".cm-underline": { textDecoration: "underline 3px red" },
-});
+      result.push(oldLines[oldTextLine - 1]);
+      lineMappings.push({
+        oldLine: oldTextLine,
+        finalLine: result.length,
+        newLine: newTextLine,
+      });
+      oldTextLine += 1;
+      newTextLine += 1;
+      continue;
+    }
 
-const underlineMark = Decoration.mark({ class: "cm-underline" });
-const underlineKeymap = keymap.of([
-  {
-    key: "Mod-h",
-    preventDefault: true,
-    run: underlineSelection,
-  },
-]);
+    if (leftLineInChunk && !rightLineInChunk) {
+      // Old text is in a chunk, new text is not
+      // We add the old text line to the result
+      result.push(oldLines[oldTextLine - 1]);
+      lineMappings.push({
+        oldLine: oldTextLine,
+        finalLine: result.length,
+        newLine: null,
+      });
+      oldTextLine += 1;
+      continue;
+    }
 
-function underlineSelection(view: EditorView) {
-  let effects: StateEffect<unknown>[] = view.state.selection.ranges
-    .filter((r) => !r.empty)
-    .map(({ from, to }) => addUnderline.of({ from, to }));
-  if (!effects.length) return false;
+    if (!leftLineInChunk && rightLineInChunk) {
+      // New text is in a chunk, old text is not
+      // We add the new text line to the result
+      result.push(newLines[newTextLine - 1]);
+      lineMappings.push({
+        oldLine: null,
+        finalLine: result.length,
+        newLine: newTextLine,
+      });
+      newTextLine += 1;
+      continue;
+    }
 
-  if (!view.state.field(underlineField, false))
-    effects.push(StateEffect.appendConfig.of([underlineField, underlineTheme]));
-  view.dispatch({ effects });
-  return true;
+    if (leftLineInChunk && rightLineInChunk) {
+      // Both lines are in a chunk.
+      // First we add all the lines from the old text
+
+      let oldLinesToAdd = closestChunk.endLeftLine - closestChunk.startLeftLine;
+
+      while (oldLinesToAdd !== 0) {
+        result.push(oldLines[oldTextLine - 1]);
+        lineMappings.push({
+          oldLine: oldTextLine,
+          finalLine: result.length,
+          newLine: null,
+        });
+        oldTextLine += 1;
+        oldLinesToAdd -= 1;
+      }
+
+      // Then we add all the lines from the new text
+      let newLinesToAdd =
+        closestChunk.endRightLine - closestChunk.startRightLine;
+
+      while (newLinesToAdd !== 0) {
+        result.push(newLines[newTextLine - 1]);
+        lineMappings.push({
+          oldLine: null,
+          finalLine: result.length,
+          newLine: newTextLine,
+        });
+        newTextLine += 1;
+        newLinesToAdd -= 1;
+      }
+
+      // We consumed the chunk, get the next one
+      chunkIndex += 1;
+      closestChunk = sortedChunks[chunkIndex];
+    }
+  }
+
+  return { doc: result.join("\n"), mapping: lineMappings };
+};
+
+const getLineDecoration = (mapping: LineMapping) => {
+  if (mapping.oldLine !== null && mapping.newLine !== null) {
+    // No decoration for this case
+    return null;
+  }
+
+  if (mapping.oldLine === null) {
+    // The line comes from the new document, it's an addition
+    return Decoration.line({ class: "cm-addedLine" });
+  } else if (mapping.newLine === null) {
+    // The line comes from the old document, it's a deletion
+    return Decoration.line({ class: "cm-deletedLine" });
+  }
+  return null;
+};
+
+function findMappingsRanges(mappings: LineMapping[]): number[][] {
+  const ranges: number[][] = [];
+  let currentRange: number[] | null = null;
+
+  for (const mapping of mappings) {
+    // If either oldLine or newLine is null
+    if (mapping.oldLine === null || mapping.newLine === null) {
+      if (!currentRange) {
+        currentRange = [mapping.finalLine, mapping.finalLine];
+      } else {
+        currentRange[1] = mapping.finalLine;
+      }
+    } else if (currentRange) {
+      ranges.push(currentRange);
+      currentRange = null;
+    }
+  }
+
+  if (currentRange) {
+    ranges.push(currentRange);
+  }
+
+  // Return the first range found
+  return ranges;
+}
+
+const buildDecorations = (mappings: LineMapping[]) => {
+  return ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet;
+      mappings: LineMapping[];
+
+      constructor(view: EditorView) {
+        this.mappings = mappings;
+        this.decorations = this.buildDecorations(view);
+      }
+
+      update(update: ViewUpdate) {
+        if (!update.docChanged) {
+          // Ignore non text changes
+          return;
+        }
+        // console.log("Previous selection\n", update.startState.selection);
+        // console.log("Current selection\n", update.state.selection);
+        const ranges = findMappingsRanges(this.mappings);
+        const affectedRanges = ranges.filter((range) => {
+          return (
+            update.changes.touchesRange(
+              update.startState.doc.line(range[0]).from,
+              update.startState.doc.line(range[1]).to,
+            ) !== false
+          );
+        });
+        console.log(affectedRanges);
+        // update.changes.touchesRange(from);
+
+        update.changes.iterChanges(
+          (
+            fromA: number,
+            toA: number,
+            fromB: number,
+            toB: number,
+            inserted: Text,
+          ) => {
+            // update.startState.doc.lineAt(fromA);
+            // update.startState.doc.lineAt(toA);
+            // console.log("fromA", fromA);
+            // console.log("toA", toA);
+            // console.log("fromB", fromB);
+            // console.log("toB", toB);
+            // console.log("inserted", inserted);
+          },
+        );
+        this.decorations = this.buildDecorations(update.view);
+      }
+
+      buildDecorations(view: EditorView): DecorationSet {
+        const decorations = [];
+        const doc = view.state.doc;
+        for (let lineNumber = 1; lineNumber <= doc.lines; lineNumber++) {
+          const mapping = this.mappings.find((m) => m.finalLine === lineNumber);
+          if (!mapping) {
+            // Unlikely
+            continue;
+          }
+          const deco = getLineDecoration(mapping);
+          if (deco) {
+            const line = doc.line(lineNumber);
+            decorations.push(deco.range(line.from));
+          }
+        }
+        return Decoration.set(decorations, true);
+      }
+    },
+    { decorations: (v) => v.decorations },
+  );
+};
+
+interface ConflictRange {
+  from: number;
+  to: number;
+  source: "old" | "new" | "both"; // where the content originated
 }
 
 const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
@@ -435,22 +295,94 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
   initialNewText,
   onConflictResolved,
 }) => {
-  const [oldText, setOldText] = React.useState(initialOldText);
-  const [newText, setNewText] = React.useState(initialNewText);
-  // const [content, setContent] = React.useState(initialNewText);
-  // const diffChunks = diff(oldText, newText);
+  const diffChunks = diff(initialOldText, initialNewText);
+  const { doc: unified, mapping } = createUnifiedDocument(
+    initialOldText,
+    initialNewText,
+    diffChunks,
+  );
+
+  const unifiedLines = unified.split("\n");
+
+  const initialRanges: ConflictRange[] = mapping.map((m) => {
+    // Calculate line positions directly from text
+    const lineStartPos = unifiedLines
+      .slice(0, m.finalLine - 1)
+      .join("\n").length;
+    // Add 1 for the newline except for first line
+    const fromPos = m.finalLine > 1 ? lineStartPos + 1 : 0;
+    const toPos = fromPos + unifiedLines[m.finalLine - 1].length;
+
+    return {
+      from: fromPos,
+      to: toPos,
+      source:
+        m.oldLine !== null && m.newLine !== null
+          ? "both"
+          : m.oldLine !== null
+            ? "old"
+            : "new",
+    };
+  });
+
+  const conflictRangesField = StateField.define<ConflictRange[]>({
+    create: () => initialRanges,
+    update: (ranges, tr) => {
+      if (!tr.docChanged) {
+        return ranges;
+      }
+
+      // Map all positions through the changes
+      const newRanges = ranges
+        .map((range) => ({
+          from: tr.changes.mapPos(range.from),
+          // mapPos by default tries to keep the new position close to the char
+          // before it.
+          // Since we need to know when a new line is added at the end of a range
+          // we set `assoc` to 1 so the new position is close to the char after it.
+          to: tr.changes.mapPos(range.to, 1),
+          source: range.source,
+        }))
+        .filter((range) => range.from !== range.to); // Remove empty ranges
+
+      return newRanges;
+    },
+  });
+
+  const buildDecorationsAlternate = EditorView.decorations.compute(
+    ["doc", conflictRangesField],
+    (state) => {
+      const ranges = state.field(conflictRangesField);
+      const builder = new RangeSetBuilder<Decoration>();
+
+      for (const range of ranges) {
+        const startLine = state.doc.lineAt(range.from);
+        const endLine = state.doc.lineAt(range.to);
+        for (let i = 0; i <= endLine.number - startLine.number; i += 1) {
+          const line = state.doc.line(startLine.number + i);
+          if (range.source === "old") {
+            builder.add(
+              line.from,
+              line.from,
+              Decoration.line({ class: "cm-deletedLine" }),
+            );
+          } else if (range.source === "new") {
+            builder.add(
+              line.from,
+              line.from,
+              Decoration.line({ class: "cm-addedLine" }),
+            );
+          }
+        }
+      }
+
+      return builder.finish();
+    },
+  );
 
   const extensions = [
-    Prec.low(decorateChunks),
-    deletedChunks,
-    originalDoc.init(() => Text.of(oldText.split(/\r?\n/))),
-    ChunkField.init(() => {
-      const foo = diff(oldText, newText);
-      console.log(oldText, newText, foo);
-      return foo;
-    }),
-    EditorView.editorAttributes.of({ class: "cm-merge-b" }),
-    // unifiedMergeView({ original: oldText }),
+    conflictRangesField,
+    buildDecorationsAlternate,
     EditorView.editable.of(true),
     EditorView.theme({
       "&": {
@@ -473,25 +405,17 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
         borderLeftColor: "var(--text-normal)",
       },
     }),
-    markdown(),
   ];
 
   return (
     <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
       <CodeMirror
-        value={newText}
+        // value={newText}
+        value={unified}
         height="100%"
         theme="none"
         basicSetup={false}
         extensions={extensions}
-        onChange={setNewText}
-        // onChange={(value: string) => {
-        //   setContent(value);
-        //   onOldTextChange(value);
-        // }}
-        // onCreateEditor={(view: EditorView) => {
-        //   editorRef.current = view;
-        // }}
       />
     </div>
   );
