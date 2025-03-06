@@ -239,34 +239,36 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
     initialNewText,
     diffChunks,
   );
-  const conflictRangesField = createRangesStateField(lineRanges);
 
-  const extensions = [
-    conflictRangesField,
-    createDecorationsExtension(conflictRangesField),
-    EditorView.editable.of(true),
-    EditorView.theme({
-      "&": {
-        backgroundColor: "var(--background-primary)",
-        color: "var(--text-normal)",
-      },
-      ".cm-content": {
-        padding: 0,
-        caretColor: "var(--caret-color)",
-        fontSize: "var(--font-text-size)",
-        fontFamily: "var(--font-text)",
-      },
-      "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
-        background: "var(--text-selection)",
-      },
-      "&.cm-focused": {
-        outline: 0,
-      },
-      "&.cm-focused .cm-cursor": {
-        borderLeftColor: "var(--text-normal)",
-      },
-    }),
-  ];
+  const extensions = React.useMemo(() => {
+    const conflictRangesField = createRangesStateField(lineRanges);
+    return [
+      conflictRangesField,
+      createDecorationsExtension(conflictRangesField),
+      EditorView.editable.of(true),
+      EditorView.theme({
+        "&": {
+          backgroundColor: "var(--background-primary)",
+          color: "var(--text-normal)",
+        },
+        ".cm-content": {
+          padding: 0,
+          caretColor: "var(--caret-color)",
+          fontSize: "var(--font-text-size)",
+          fontFamily: "var(--font-text)",
+        },
+        "&.cm-focused .cm-selectionBackground, .cm-selectionBackground": {
+          background: "var(--text-selection)",
+        },
+        "&.cm-focused": {
+          outline: 0,
+        },
+        "&.cm-focused .cm-cursor": {
+          borderLeftColor: "var(--text-normal)",
+        },
+      }),
+    ];
+  }, [initialOldText, initialNewText]);
 
   return (
     <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
