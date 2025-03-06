@@ -14,7 +14,7 @@ const MobileApp = ({
     ConflictResolution[]
   >([]);
 
-  const onConflictResolved = (fileIndex: number) => {
+  const onConflictResolved = (fileIndex: number, content: string) => {
     // Remove the file from the conflicts to resolve
     const remainingFiles = files.filter((_, index) => index !== fileIndex);
     setFiles(remainingFiles);
@@ -23,7 +23,7 @@ const MobileApp = ({
       ...resolvedConflicts,
       {
         filePath: files[fileIndex].filePath,
-        content: files[fileIndex].localContent,
+        content,
       },
     ];
     setResolvedConflicts(newResolvedConflicts);
@@ -57,7 +57,9 @@ const MobileApp = ({
         <UnifiedDiffView
           initialOldText={file.remoteContent || ""}
           initialNewText={file.localContent || ""}
-          onConflictResolved={() => onConflictResolved(index)}
+          onConflictResolved={(content: string) => {
+            onConflictResolved(index, content);
+          }}
         />
       </div>
     );

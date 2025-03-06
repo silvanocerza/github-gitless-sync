@@ -7,7 +7,7 @@ import diff, { DiffChunk } from "./diff";
 interface UnifiedDiffViewProps {
   initialOldText: string;
   initialNewText: string;
-  onConflictResolved: () => void;
+  onConflictResolved: (content: string) => void;
 }
 
 const createUnifiedDocument = (
@@ -219,6 +219,8 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
   initialNewText,
   onConflictResolved,
 }) => {
+  const editorViewRef = React.useRef<EditorView | null>(null);
+
   const diffChunks = diff(initialOldText, initialNewText);
   const { doc, lineRanges } = createUnifiedDocument(
     initialOldText,
@@ -250,7 +252,8 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
         "&": {
           backgroundColor: "var(--background-primary)",
           color: "var(--text-normal)",
-          border: "1px solid var(--background-modifier-border)",
+          borderTop: "1px solid var(--background-modifier-border)",
+          borderBottom: "1px solid var(--background-modifier-border)",
         },
         ".cm-content": {
           padding: 0,
@@ -288,6 +291,9 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
         theme="none"
         basicSetup={false}
         extensions={extensions}
+        onCreateEditor={(view: EditorView) => {
+          editorViewRef.current = view;
+        }}
       />
       <div
         style={{
@@ -297,13 +303,18 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
         }}
       >
         <button
-          style={{
-            backgroundColor: "var(--interactive-accent)",
-            color: "var(--text-on-accent)",
-          }}
+          style={
+            hasConflicts
+              ? {}
+              : {
+                  backgroundColor: "var(--interactive-accent)",
+                  color: "var(--text-on-accent)",
+                }
+          }
           disabled={hasConflicts}
           onClick={() => {
-            console.log("Conflict resolved");
+            const content = editorViewRef.current!.state.doc.toString();
+            onConflictResolved(content);
           }}
         >
           Resolve conflict
