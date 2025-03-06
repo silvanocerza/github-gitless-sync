@@ -39,14 +39,26 @@ const MobileApp = ({
         key={file.filePath}
         style={{
           width: "100%",
+          paddingTop: "var(--size-4-4)",
+          paddingBottom: "var(--size-4-4)",
+          borderBottom: "1px solid var(--background-modifier-border)",
         }}
       >
+        <div
+          className="inline-title"
+          style={{
+            width: "100%",
+            paddingLeft: "var(--size-4-8)",
+            paddingRight: "var(--size-4-8)",
+          }}
+        >
+          {file.filePath}
+        </div>
         <UnifiedDiffView
           initialOldText={file.remoteContent || ""}
           initialNewText={file.localContent || ""}
           onConflictResolved={() => onConflictResolved(index)}
         />
-        <hr />
       </div>
     );
   };

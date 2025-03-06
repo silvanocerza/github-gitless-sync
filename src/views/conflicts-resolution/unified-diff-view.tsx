@@ -240,16 +240,31 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
     diffChunks,
   );
 
+  const [hasConflicts, setHasConflicts] = React.useState(diffChunks.length > 0);
+
   const extensions = React.useMemo(() => {
     const conflictRangesField = createRangesStateField(lineRanges);
     return [
       conflictRangesField,
       createDecorationsExtension(conflictRangesField),
+      EditorView.updateListener.of((update) => {
+        if (update.docChanged) {
+          const conflictRanges = update.state.field(conflictRangesField);
+          const allConflictsSolved = conflictRanges.some(
+            (range) => range.source === "old" || range.source === "new",
+          );
+
+          if (!allConflictsSolved) {
+            setHasConflicts(allConflictsSolved);
+          }
+        }
+      }),
       EditorView.editable.of(true),
       EditorView.theme({
         "&": {
           backgroundColor: "var(--background-primary)",
           color: "var(--text-normal)",
+          border: "1px solid var(--background-modifier-border)",
         },
         ".cm-content": {
           padding: 0,
@@ -279,6 +294,26 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
         basicSetup={false}
         extensions={extensions}
       />
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          paddingTop: "var(--size-4-4)",
+        }}
+      >
+        <button
+          style={{
+            backgroundColor: "var(--interactive-accent)",
+            color: "var(--text-on-accent)",
+          }}
+          disabled={hasConflicts}
+          onClick={() => {
+            console.log("Conflict resolved");
+          }}
+        >
+          Resolve conflict
+        </button>
+      </div>
     </div>
   );
 };
