@@ -4,20 +4,6 @@ import { Decoration, EditorView } from "@codemirror/view";
 
 import diff, { DiffChunk } from "./diff";
 
-const styles = document.createElement("style");
-styles.innerHTML = `
-  .cm-changedLine {
-    background-color: rgba(var(--color-yellow-rgb), 0.1);
-  }
-  .cm-addedLine {
-    background-color: rgba(var(--color-green-rgb), 0.1);
-  }
-  .cm-deletedLine {
-    background-color: rgba(var(--color-red-rgb), 0.1);
-  }
-`;
-document.head.appendChild(styles);
-
 interface UnifiedDiffViewProps {
   initialOldText: string;
   initialNewText: string;
@@ -280,6 +266,15 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
         },
         "&.cm-focused .cm-cursor": {
           borderLeftColor: "var(--text-normal)",
+        },
+        ".cm-changedLine": {
+          backgroundColor: "rgba(var(--color-yellow-rgb), 0.1)",
+        },
+        ".cm-addedLine": {
+          backgroundColor: "rgba(var(--color-green-rgb), 0.1)",
+        },
+        ".cm-deletedLine": {
+          backgroundColor: "rgba(var(--color-red-rgb), 0.1)",
         },
       }),
     ];
