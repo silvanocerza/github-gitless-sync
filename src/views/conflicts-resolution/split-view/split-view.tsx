@@ -89,14 +89,14 @@ const SplitView = ({
               setCurrentFileIndex={setCurrentFileIndex}
             />
             <DiffView
-              oldText={currentFile?.remoteContent || ""}
-              newText={currentFile?.localContent || ""}
-              onOldTextChange={(content: string) => {
+              remoteText={currentFile?.remoteContent || ""}
+              localText={currentFile?.localContent || ""}
+              onRemoteTextChange={(content: string) => {
                 const tempFiles = [...files];
                 tempFiles[currentFileIndex].remoteContent = content;
                 setFiles(tempFiles);
               }}
-              onNewTextChange={(content: string) => {
+              onLocalTextChange={(content: string) => {
                 const tempFiles = [...files];
                 tempFiles[currentFileIndex].localContent = content;
                 setFiles(tempFiles);

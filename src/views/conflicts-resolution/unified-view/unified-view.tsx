@@ -55,8 +55,8 @@ const UnifiedView = ({
           {file.filePath}
         </div>
         <DiffView
-          initialOldText={file.remoteContent || ""}
-          initialNewText={file.localContent || ""}
+          initialRemoteText={file.remoteContent || ""}
+          initialLocalText={file.localContent || ""}
           onConflictResolved={(content: string) => {
             onConflictResolved(index, content);
           }}

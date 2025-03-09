@@ -5,5 +5,5 @@
 interface ConflictRange {
   from: number;
   to: number;
-  source: "old" | "new" | "both";
+  source: "remote" | "local" | "both";
 }

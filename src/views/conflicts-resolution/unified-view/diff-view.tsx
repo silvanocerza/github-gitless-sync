@@ -10,8 +10,8 @@ import {
 } from "./decorations";
 
 interface DiffViewProps {
-  initialOldText: string;
-  initialNewText: string;
+  initialRemoteText: string;
+  initialLocalText: string;
   onConflictResolved: (content: string) => void;
 }
 
@@ -21,26 +21,26 @@ interface DiffViewProps {
 /// ranges that specify whether a certain document range comes from
 /// remote, local or both documents, so we can highlight them.
 const createUnifiedDocument = (
-  oldText: string,
-  newText: string,
+  remoteText: string,
+  localText: string,
   diffChunks: DiffChunk[],
 ): { doc: string; lineRanges: ConflictRange[] } => {
   const sortedChunks = [...diffChunks].sort(
     (a, b) => a.startLeftLine - b.startLeftLine,
   );
 
-  const oldLines = oldText.split(/\r?\n/);
-  const newLines = newText.split(/\r?\n/);
+  const remoteLines = remoteText.split(/\r?\n/);
+  const localLines = localText.split(/\r?\n/);
 
   let result: string[] = [];
   let lineRanges: ConflictRange[] = [];
   let linePosition = 0;
   let currentRange: ConflictRange | null = null;
 
-  let oldTextLine = 1;
-  let newTextLine = 1;
+  let remoteTextLine = 1;
+  let localTextLine = 1;
 
-  const addLine = (line: string, source: "old" | "new" | "both") => {
+  const addLine = (line: string, source: "remote" | "local" | "both") => {
     result.push(line);
 
     const startPos = linePosition;
@@ -65,35 +65,42 @@ const createUnifiedDocument = (
   for (const chunk of sortedChunks) {
     // Add common lines before the chunk
     while (
-      oldTextLine < chunk.startLeftLine &&
-      newTextLine < chunk.startRightLine
+      remoteTextLine < chunk.startLeftLine &&
+      localTextLine < chunk.startRightLine
     ) {
-      addLine(oldLines[oldTextLine - 1], "both");
-      oldTextLine++;
-      newTextLine++;
+      addLine(remoteLines[remoteTextLine - 1], "both");
+      remoteTextLine++;
+      localTextLine++;
     }
 
     // Add removed lines (from old text)
-    for (let i = oldTextLine; i < chunk.endLeftLine; i++) {
-      addLine(oldLines[i - 1], "old");
+    for (let i = remoteTextLine; i < chunk.endLeftLine; i++) {
+      addLine(remoteLines[i - 1], "remote");
     }
 
     // Add added lines (from new text)
-    for (let i = newTextLine; i < chunk.endRightLine; i++) {
-      addLine(newLines[i - 1], "new");
+    for (let i = localTextLine; i < chunk.endRightLine; i++) {
+      addLine(localLines[i - 1], "local");
     }
 
     // Update line pointers
-    oldTextLine = chunk.endLeftLine;
-    newTextLine = chunk.endRightLine;
+    remoteTextLine = chunk.endLeftLine;
+    localTextLine = chunk.endRightLine;
   }
 
   // Add remaining common lines after the last chunk
-  while (oldTextLine <= oldLines.length && newTextLine <= newLines.length) {
-    if (oldTextLine > oldLines.length || newTextLine > newLines.length) break;
-    addLine(oldLines[oldTextLine - 1], "both");
-    oldTextLine++;
-    newTextLine++;
+  while (
+    remoteTextLine <= remoteLines.length &&
+    localTextLine <= localLines.length
+  ) {
+    if (
+      remoteTextLine > remoteLines.length ||
+      localTextLine > localLines.length
+    )
+      break;
+    addLine(remoteLines[remoteTextLine - 1], "both");
+    remoteTextLine++;
+    localTextLine++;
   }
 
   // Add the final range if there is one
@@ -105,16 +112,16 @@ const createUnifiedDocument = (
 };
 
 const DiffView: React.FC<DiffViewProps> = ({
-  initialOldText,
-  initialNewText,
+  initialRemoteText,
+  initialLocalText,
   onConflictResolved,
 }) => {
   const editorViewRef = React.useRef<EditorView | null>(null);
 
-  const diffChunks = diff(initialOldText, initialNewText);
+  const diffChunks = diff(initialRemoteText, initialLocalText);
   const { doc, lineRanges } = createUnifiedDocument(
-    initialOldText,
-    initialNewText,
+    initialRemoteText,
+    initialLocalText,
     diffChunks,
   );
 
@@ -134,7 +141,7 @@ const DiffView: React.FC<DiffViewProps> = ({
         if (update.docChanged) {
           const conflictRanges = update.state.field(conflictRangesField);
           const allConflictsSolved = conflictRanges.some(
-            (range) => range.source === "old" || range.source === "new",
+            (range) => range.source === "remote" || range.source === "local",
           );
 
           if (!allConflictsSolved) {
@@ -173,7 +180,7 @@ const DiffView: React.FC<DiffViewProps> = ({
         },
       }),
     ];
-  }, [initialOldText, initialNewText]);
+  }, [initialRemoteText, initialLocalText]);
 
   return (
     <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>

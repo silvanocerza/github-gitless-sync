@@ -10,7 +10,7 @@ export const UpdateRangesEffect = StateEffect.define<RangeUpdateOperation>();
 
 export type RangeChangeSourceOperation = {
   index: number;
-  newSource: "old" | "new" | "both";
+  newSource: "remote" | "local" | "both";
 };
 
 export type RangeRemoveOperation = {

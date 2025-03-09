@@ -20,18 +20,18 @@ styles.innerHTML = `
 document.head.appendChild(styles);
 
 interface DiffViewProps {
-  oldText: string;
-  newText: string;
-  onOldTextChange: (content: string) => void;
-  onNewTextChange: (content: string) => void;
+  remoteText: string;
+  localText: string;
+  onRemoteTextChange: (content: string) => void;
+  onLocalTextChange: (content: string) => void;
   onConflictResolved: () => void;
 }
 
 const DiffView: React.FC<DiffViewProps> = ({
-  oldText,
-  newText,
-  onOldTextChange,
-  onNewTextChange,
+  remoteText,
+  localText,
+  onRemoteTextChange,
+  onLocalTextChange,
   onConflictResolved,
 }) => {
   // We need to know the line height to correctly draw the ribbon between the left
@@ -46,7 +46,7 @@ const DiffView: React.FC<DiffViewProps> = ({
   const [rightEditorTopOffset, setRightEditorTopOffset] =
     React.useState<number>(0);
 
-  const diffs = diff(oldText, newText);
+  const diffs = diff(remoteText, localText);
 
   return (
     <div
@@ -59,13 +59,13 @@ const DiffView: React.FC<DiffViewProps> = ({
     >
       <div style={{ flex: 1, overflow: "hidden" }}>
         <EditorPane
-          content={oldText}
+          content={remoteText}
           highlightPluginSpec={{
             diff: diffs,
             isOriginal: true,
           }}
           onEditorUpdate={handleEditorReady}
-          onContentChange={onOldTextChange}
+          onContentChange={onRemoteTextChange}
           onScrollTopUpdate={setLeftEditorTopOffset}
         />
       </div>
@@ -94,77 +94,77 @@ const DiffView: React.FC<DiffViewProps> = ({
           rightEditorTopLineOffset={rightEditorTopOffset}
           onAcceptLeft={(chunk: DiffChunk) => {
             if (chunk.type === "add") {
-              const oldLines = oldText.split("\n");
-              oldLines.splice(
+              const remoteLines = remoteText.split("\n");
+              remoteLines.splice(
                 chunk.startLeftLine - 1,
                 0,
-                ...newText
+                ...localText
                   .split("\n")
                   .slice(chunk.startRightLine - 1, chunk.endRightLine - 1),
               );
-              onOldTextChange(oldLines.join("\n"));
+              onRemoteTextChange(remoteLines.join("\n"));
             } else if (chunk.type === "modify") {
-              const oldLines = oldText.split("\n");
-              oldLines.splice(
+              const remoteLines = remoteText.split("\n");
+              remoteLines.splice(
                 chunk.startLeftLine - 1,
                 chunk.endLeftLine - chunk.startLeftLine,
-                ...newText
+                ...localText
                   .split("\n")
                   .slice(chunk.startRightLine - 1, chunk.endRightLine - 1),
               );
-              onOldTextChange(oldLines.join("\n"));
+              onRemoteTextChange(remoteLines.join("\n"));
             }
           }}
           onAcceptRight={(chunk: DiffChunk) => {
             if (chunk.type === "remove") {
-              const newLines = newText.split("\n");
-              newLines.splice(
+              const localLines = localText.split("\n");
+              localLines.splice(
                 chunk.startRightLine - 1,
                 0,
-                ...oldText
+                ...remoteText
                   .split("\n")
                   .slice(chunk.startLeftLine - 1, chunk.endLeftLine - 1),
               );
-              onNewTextChange(newLines.join("\n"));
+              onLocalTextChange(localLines.join("\n"));
             } else if (chunk.type === "modify") {
-              const newLines = newText.split("\n");
-              newLines.splice(
+              const localLines = localText.split("\n");
+              localLines.splice(
                 chunk.startRightLine - 1,
                 chunk.endRightLine - chunk.startRightLine,
-                ...oldText
+                ...remoteText
                   .split("\n")
                   .slice(chunk.startLeftLine - 1, chunk.endLeftLine - 1),
               );
-              onNewTextChange(newLines.join("\n"));
+              onLocalTextChange(localLines.join("\n"));
             }
           }}
           onReject={(chunk: DiffChunk) => {
             if (chunk.type === "add") {
-              const newLines = newText.split("\n");
-              newLines.splice(
+              const localLines = localText.split("\n");
+              localLines.splice(
                 chunk.startRightLine - 1,
                 chunk.endRightLine - chunk.startRightLine,
               );
-              onNewTextChange(newLines.join("\n"));
+              onLocalTextChange(localLines.join("\n"));
             } else if (chunk.type === "remove") {
-              const oldLines = oldText.split("\n");
-              oldLines.splice(
+              const remoteLines = remoteText.split("\n");
+              remoteLines.splice(
                 chunk.startLeftLine - 1,
                 chunk.endLeftLine - chunk.startLeftLine,
               );
-              onOldTextChange(oldLines.join("\n"));
+              onRemoteTextChange(remoteLines.join("\n"));
             }
           }}
         />
       </div>
       <div style={{ flex: 1, overflow: "hidden" }}>
         <EditorPane
-          content={newText}
+          content={localText}
           highlightPluginSpec={{
             diff: diffs,
             isOriginal: false,
           }}
-          onContentChange={onNewTextChange}
+          onContentChange={onLocalTextChange}
           onScrollTopUpdate={setRightEditorTopOffset}
         />
       </div>

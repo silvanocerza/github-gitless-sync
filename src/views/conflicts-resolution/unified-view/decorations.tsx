@@ -78,13 +78,13 @@ export const createLineDecorations = (
       const endLine = state.doc.lineAt(range.to);
       for (let i = 0; i <= endLine.number - startLine.number; i += 1) {
         const line = state.doc.line(startLine.number + i);
-        if (range.source === "old") {
+        if (range.source === "remote") {
           builder.add(
             line.from,
             line.from,
             Decoration.line({ class: "cm-deletedLine" }),
           );
-        } else if (range.source === "new") {
+        } else if (range.source === "local") {
           builder.add(
             line.from,
             line.from,
@@ -118,8 +118,8 @@ export const createResolutionDecorations = (
         const previousRange = ranges.at(index - 1);
         const nextRange = ranges.at(index + 1);
 
-        if (range.source === "old") {
-          const nextRangeIsNew = nextRange?.source === "new";
+        if (range.source === "remote") {
+          const nextRangeIsNew = nextRange?.source === "local";
           if (nextRangeIsNew) {
             const deco = Decoration.widget({
               widget: new ResolutionWidget({
@@ -224,7 +224,10 @@ export const createResolutionDecorations = (
             });
             widgets.push(deco.range(range.from));
           }
-        } else if (range.source === "new" && previousRange?.source !== "old") {
+        } else if (
+          range.source === "local" &&
+          previousRange?.source !== "remote"
+        ) {
           // We draw this only in case the previous range doesn't come from the old document
           // since we handle that above
           const deco = Decoration.widget({
