@@ -1,7 +1,7 @@
 {
   "id": "github-gitless-sync",
   "name": "GitHub Gitless Sync",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "minAppVersion": "1.7.7",
   "description": "Sync a GitHub repository with vaults on different platforms without requiring git installation",
   "author": "Silvano Cerza",
