@@ -4,21 +4,6 @@ import EditorPane from "./editor-pane";
 import ActionsGutter from "./actions-gutter";
 import * as React from "react";
 
-// Add styles for diff highlighting
-const styles = document.createElement("style");
-styles.innerHTML = `
-  .diff-modify-background {
-    background-color: rgba(var(--color-yellow-rgb), 0.1);
-  }
-  .diff-add-background {
-    background-color: rgba(var(--color-green-rgb), 0.1);
-  }
-  .diff-remove-background {
-    background-color: rgba(var(--color-red-rgb), 0.1);
-  }
-`;
-document.head.appendChild(styles);
-
 interface DiffViewProps {
   remoteText: string;
   localText: string;

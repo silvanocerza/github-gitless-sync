@@ -50,6 +50,15 @@ const EditorPane: React.FC<EditorPaneProps> = (props) => {
         "&.cm-focused .cm-cursor": {
           borderLeftColor: "var(--text-normal)",
         },
+        ".diff-modify-background": {
+          backgroundColor: "rgba(var(--color-yellow-rgb), 0.1)",
+        },
+        ".diff-add-background": {
+          backgroundColor: "rgba(var(--color-green-rgb), 0.1)",
+        },
+        ".diff-remove-background": {
+          backgroundColor: "rgba(var(--color-red-rgb), 0.1)",
+        },
       }),
       markdown(),
       EditorView.domEventObservers({
