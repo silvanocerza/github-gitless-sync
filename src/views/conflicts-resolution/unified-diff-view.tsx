@@ -1,8 +1,16 @@
 import * as React from "react";
-import CodeMirror, { RangeSetBuilder, StateField } from "@uiw/react-codemirror";
-import { Decoration, EditorView } from "@codemirror/view";
+import CodeMirror, {
+  EditorState,
+  RangeSetBuilder,
+  StateEffect,
+  StateField,
+  Transaction,
+} from "@uiw/react-codemirror";
+import { Decoration, EditorView, WidgetType } from "@codemirror/view";
 
 import diff, { DiffChunk } from "./diff";
+import { createRoot } from "react-dom/client";
+import UnifiedResolutionBar from "./unified-resolution-bar";
 
 interface UnifiedDiffViewProps {
   initialOldText: string;
@@ -94,24 +102,54 @@ const createUnifiedDocument = (
   return { doc: result.join("\n"), lineRanges };
 };
 
+type RangeChangeSourceOperation = {
+  index: number;
+  newSource: "old" | "new" | "both";
+};
+
+type RangeRemoveOperation = {
+  index: number;
+};
+
+type RangeUpdateOperation = RangeChangeSourceOperation | RangeRemoveOperation;
+
+const updateRangesEffect = StateEffect.define<RangeUpdateOperation>();
+
 const createRangesStateField = (
   initialRanges: ConflictRange[],
 ): StateField<ConflictRange[]> => {
   return StateField.define<ConflictRange[]>({
     create: () => initialRanges,
     update: (ranges, tr) => {
-      if (!tr.docChanged) {
+      const rangeEffects = tr.effects
+        .filter((e) => e.is(updateRangesEffect))
+        .reduce((acc, e) => {
+          const operation = e.value as RangeUpdateOperation;
+          acc.set(operation.index, operation);
+          return acc;
+        }, new Map<number, RangeUpdateOperation>());
+
+      if (!tr.docChanged && rangeEffects.size === 0) {
         return ranges;
       }
 
-      // Map all positions through the changes
+      // Map all positions through the changes and apply any effect
       let newRanges = ranges
-        .map((range) => ({
-          from: tr.changes.mapPos(range.from),
-          to: tr.changes.mapPos(range.to, 1),
-          source: range.source,
-        }))
-        .filter((range) => range.from !== range.to);
+        .map((range, index) => {
+          let source = range.source;
+          const effect = rangeEffects.get(index) as RangeChangeSourceOperation;
+          if (effect) {
+            source = effect.newSource;
+          }
+          return {
+            from: tr.changes.mapPos(range.from),
+            to: tr.changes.mapPos(range.to, 1),
+            source,
+          };
+        })
+        .filter((range, index) => {
+          return range.from !== range.to && !rangeEffects.has(index);
+        });
 
       // Sort ranges by start position (leftmost first)
       newRanges.sort((a, b) => a.from - b.from);
@@ -214,6 +252,213 @@ interface ConflictRange {
   source: "old" | "new" | "both"; // where the content originated
 }
 
+interface ResolutionWidgetProps {
+  onAccept?: () => void;
+  onDiscard?: () => void;
+  onAcceptAbove?: () => void;
+  onAcceptBelow?: () => void;
+  onAcceptBoth?: () => void;
+  onDiscardBoth?: () => void;
+}
+
+class ResolutionWidget extends WidgetType {
+  onAccept?: () => void;
+  onDiscard?: () => void;
+  onAcceptAbove?: () => void;
+  onAcceptBelow?: () => void;
+  onAcceptBoth?: () => void;
+  onDiscardBoth?: () => void;
+
+  constructor(props: ResolutionWidgetProps) {
+    super();
+    ({
+      onAccept: this.onAccept,
+      onDiscard: this.onDiscard,
+      onAcceptAbove: this.onAcceptAbove,
+      onAcceptBelow: this.onAcceptBelow,
+      onAcceptBoth: this.onAcceptBoth,
+      onDiscardBoth: this.onDiscardBoth,
+    } = props);
+  }
+
+  toDOM(): HTMLElement {
+    const div = document.createElement("div");
+    const root = createRoot(div);
+    root.render(
+      <UnifiedResolutionBar
+        onAccept={this.onAccept}
+        onDiscard={this.onDiscard}
+        onAcceptAbove={this.onAcceptAbove}
+        onAcceptBelow={this.onAcceptBelow}
+        onAcceptBoth={this.onAcceptBoth}
+        onDiscardBoth={this.onDiscardBoth}
+      />,
+    );
+    return div;
+  }
+}
+
+const createBlockDecorations = (
+  rangesStateField: StateField<ConflictRange[]>,
+  getView: () => EditorView,
+) => {
+  return EditorView.decorations.compute(
+    [rangesStateField],
+    (state: EditorState) => {
+      const ranges = state.field(rangesStateField);
+      let widgets = [];
+
+      ranges.forEach((range: ConflictRange, index: number) => {
+        if (range.source === "both") {
+          return;
+        }
+        const previousRange = ranges.at(index - 1);
+        const nextRange = ranges.at(index + 1);
+
+        if (range.source === "old") {
+          const nextRangeIsNew = nextRange?.source === "new";
+          if (nextRangeIsNew) {
+            const deco = Decoration.widget({
+              widget: new ResolutionWidget({
+                onAcceptAbove: () => {
+                  getView().dispatch({
+                    changes: {
+                      from: range.to,
+                      to: nextRange.to,
+                      insert: "",
+                    },
+                    effects: [
+                      updateRangesEffect.of({
+                        index,
+                        newSource: "both",
+                      }),
+                      updateRangesEffect.of({
+                        index: index + 1,
+                      }),
+                    ],
+                  });
+                },
+                onAcceptBelow: () => {
+                  getView().dispatch({
+                    changes: {
+                      from: range.from,
+                      to: nextRange?.from || range.to,
+                      insert: "",
+                    },
+                    effects: [
+                      updateRangesEffect.of({
+                        index,
+                      }),
+                      updateRangesEffect.of({
+                        index: index + 1,
+                        newSource: "both",
+                      }),
+                    ],
+                  });
+                },
+                onAcceptBoth: () => {
+                  getView().dispatch({
+                    effects: [
+                      updateRangesEffect.of({
+                        index,
+                        newSource: "both",
+                      }),
+                      updateRangesEffect.of({
+                        index: index + 1,
+                        newSource: "both",
+                      }),
+                    ],
+                  });
+                },
+                onDiscardBoth: () => {
+                  getView().dispatch({
+                    changes: {
+                      from: Math.max(range.from - 1, 0),
+                      to: ranges.at(index + 2)?.from || nextRange.to,
+                      insert: "",
+                    },
+                    effects: [
+                      updateRangesEffect.of({
+                        index,
+                      }),
+                      updateRangesEffect.of({
+                        index: index + 1,
+                      }),
+                    ],
+                  });
+                },
+              }),
+              side: 1,
+              block: true,
+            });
+            widgets.push(deco.range(range.to));
+          } else {
+            const deco = Decoration.widget({
+              widget: new ResolutionWidget({
+                onAccept: () => {
+                  getView().dispatch({
+                    effects: updateRangesEffect.of({
+                      index: index,
+                      newSource: "both",
+                    }),
+                  });
+                },
+                onDiscard: () => {
+                  getView().dispatch({
+                    changes: {
+                      from: Math.max(range.from - 1, 0),
+                      to: nextRange?.from || range.to,
+                      insert: "",
+                    },
+                    effects: updateRangesEffect.of({
+                      index: index,
+                    }),
+                  });
+                },
+              }),
+              side: -1,
+              block: true,
+            });
+            widgets.push(deco.range(range.from));
+          }
+        } else if (range.source === "new" && previousRange?.source !== "old") {
+          // We draw this only in case the previous range doesn't come from the old document
+          // since we handle that above
+          const deco = Decoration.widget({
+            widget: new ResolutionWidget({
+              onAccept: () => {
+                getView().dispatch({
+                  effects: updateRangesEffect.of({
+                    index: index,
+                    newSource: "both",
+                  }),
+                });
+              },
+              onDiscard: () => {
+                getView().dispatch({
+                  changes: {
+                    from: Math.max(range.from - 1, 0),
+                    to: nextRange?.from || range.to,
+                    insert: "",
+                  },
+                  effects: updateRangesEffect.of({
+                    index: index,
+                  }),
+                });
+              },
+            }),
+            side: -1,
+            block: true,
+          });
+          widgets.push(deco.range(range.from));
+        }
+      });
+
+      return Decoration.set(widgets);
+    },
+  );
+};
+
 const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
   initialOldText,
   initialNewText,
@@ -235,6 +480,11 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
     return [
       conflictRangesField,
       createDecorationsExtension(conflictRangesField),
+      createBlockDecorations(
+        conflictRangesField,
+
+        () => editorViewRef.current!,
+      ),
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           const conflictRanges = update.state.field(conflictRangesField);
@@ -269,9 +519,6 @@ const UnifiedDiffView: React.FC<UnifiedDiffViewProps> = ({
         },
         "&.cm-focused .cm-cursor": {
           borderLeftColor: "var(--text-normal)",
-        },
-        ".cm-changedLine": {
-          backgroundColor: "rgba(var(--color-yellow-rgb), 0.1)",
         },
         ".cm-addedLine": {
           backgroundColor: "rgba(var(--color-green-rgb), 0.1)",
