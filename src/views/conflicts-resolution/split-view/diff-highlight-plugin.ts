@@ -5,7 +5,7 @@ import {
   EditorView,
   ViewUpdate,
 } from "@codemirror/view";
-import { DiffChunk } from "./diff";
+import { DiffChunk } from "../diff";
 
 export interface DiffHighlightPluginSpec {
   diff: DiffChunk[];

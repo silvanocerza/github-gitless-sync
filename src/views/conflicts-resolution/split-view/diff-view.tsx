@@ -1,9 +1,5 @@
-import { useEffect, useRef, useState } from "react";
 import { EditorView } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
-import { markdown } from "@codemirror/lang-markdown";
-import diff, { DiffChunk } from "./diff";
-import { createDiffHighlightPlugin } from "./diff-highlight-plugin";
+import diff, { DiffChunk } from "../diff";
 import EditorPane from "./editor-pane";
 import ActionsGutter from "./actions-gutter";
 import * as React from "react";
@@ -31,7 +27,7 @@ interface DiffViewProps {
   onConflictResolved: () => void;
 }
 
-const SplitDiffView: React.FC<DiffViewProps> = ({
+const DiffView: React.FC<DiffViewProps> = ({
   oldText,
   newText,
   onOldTextChange,
@@ -176,4 +172,4 @@ const SplitDiffView: React.FC<DiffViewProps> = ({
   );
 };
 
-export default SplitDiffView;
+export default DiffView;

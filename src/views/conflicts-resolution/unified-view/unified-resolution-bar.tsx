@@ -9,6 +9,7 @@ interface UnifiedResolutionBarProps {
   onDiscardBoth?: () => void;
 }
 
+/// Component that shows buttons the user can click to resolve conflicts
 const UnifiedResolutionBar: React.FC<UnifiedResolutionBarProps> = ({
   onAccept,
   onDiscard,

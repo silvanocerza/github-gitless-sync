@@ -1,5 +1,9 @@
 export interface DiffChunk {
   type: "add" | "remove" | "modify";
+  // These use the line number, so they start at 1.
+  // If the DiffChunk is a single line the end will be start + 1.
+  // If start and end are identical it means the line from left must
+  // be added to right, and viceversa.
   startLeftLine: number;
   endLeftLine: number;
   startRightLine: number;

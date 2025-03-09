@@ -1,9 +1,9 @@
 import * as React from "react";
 import { ConflictFile, ConflictResolution } from "src/sync-manager";
-import SplitDiffView from "./split-diff-view";
+import DiffView from "./diff-view";
 import FilesTabBar from "./files-tab-bar";
 
-const DesktopApp = ({
+const SplitView = ({
   initialFiles,
   onResolveAllConflicts,
 }: {
@@ -88,7 +88,7 @@ const DesktopApp = ({
               currentFile={currentFile?.filePath || ""}
               setCurrentFileIndex={setCurrentFileIndex}
             />
-            <SplitDiffView
+            <DiffView
               oldText={currentFile?.remoteContent || ""}
               newText={currentFile?.localContent || ""}
               onOldTextChange={(content: string) => {
@@ -110,4 +110,4 @@ const DesktopApp = ({
   );
 };
 
-export default DesktopApp;
+export default SplitView;

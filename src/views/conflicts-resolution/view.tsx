@@ -2,8 +2,8 @@ import { IconName, ItemView, Menu, WorkspaceLeaf } from "obsidian";
 import { Root, createRoot } from "react-dom/client";
 import GitHubSyncPlugin from "src/main";
 import { ConflictFile, ConflictResolution } from "src/sync-manager";
-import DesktopApp from "./desktop-app";
-import MobileApp from "./mobile-app";
+import SplitView from "./split-view/split-view";
+import UnifiedView from "./unified-view/unified-view";
 
 export const CONFLICTS_RESOLUTION_VIEW_TYPE = "conflicts-resolution-view";
 
@@ -56,11 +56,11 @@ export class ConflictsResolutionView extends ItemView {
 
     this.root.render(
       <>
-        <MobileApp
+        <UnifiedView
           initialFiles={conflicts}
           onResolveAllConflicts={this.resolveAllConflicts.bind(this)}
         />
-        <DesktopApp
+        <SplitView
           initialFiles={conflicts}
           onResolveAllConflicts={this.resolveAllConflicts.bind(this)}
         />

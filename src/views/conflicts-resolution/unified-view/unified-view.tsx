@@ -1,8 +1,8 @@
 import * as React from "react";
 import { ConflictFile, ConflictResolution } from "src/sync-manager";
-import UnifiedDiffView from "./unified-diff-view";
+import DiffView from "./diff-view";
 
-const MobileApp = ({
+const UnifiedView = ({
   initialFiles,
   onResolveAllConflicts,
 }: {
@@ -54,7 +54,7 @@ const MobileApp = ({
         >
           {file.filePath}
         </div>
-        <UnifiedDiffView
+        <DiffView
           initialOldText={file.remoteContent || ""}
           initialNewText={file.localContent || ""}
           onConflictResolved={(content: string) => {
@@ -105,4 +105,4 @@ const MobileApp = ({
   );
 };
 
-export default MobileApp;
+export default UnifiedView;
