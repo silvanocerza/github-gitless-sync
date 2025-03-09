@@ -1,7 +1,6 @@
 import {
   EventRef,
   Plugin,
-  Platform,
   WorkspaceLeaf,
   normalizePath,
   Notice,
