@@ -1,7 +1,7 @@
 {
-  "name": "obsidian-github-sync",
+  "name": "github-gitless-sync",
   "version": "1.0.0",
-  "description": "Sync a GitHub repository with Obsidian vaults on different platforms",
+  "description": "Sync a GitHub repository with vaults on different platforms without requiring git installation",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
