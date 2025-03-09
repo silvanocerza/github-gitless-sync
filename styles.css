@@ -1,0 +1,7 @@
+.hidden-navigation-header {
+    display: none;
+}
+
+.padless-conflicts-view-container {
+    padding: 0;
+}

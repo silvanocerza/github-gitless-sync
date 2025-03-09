@@ -46,11 +46,12 @@ export class ConflictsResolutionView extends ItemView {
   private render(conflicts: ConflictFile[]) {
     if (!this.root) {
       // Hides the navigation header
-      (this.containerEl.children[0] as HTMLElement).style.display = "none";
+      (this.containerEl.children[0] as HTMLElement).className =
+        "hidden-navigation-header";
       const container = this.containerEl.children[1];
       container.empty();
       // We don't want any padding, the DiffView component will handle that
-      (container as HTMLElement).style.padding = "0";
+      (container as HTMLElement).className = "padless-conflicts-view-container";
       this.root = createRoot(container);
     }
 
