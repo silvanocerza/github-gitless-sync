@@ -1,9 +1,9 @@
 {
   "id": "obsidian-github-sync",
   "name": "GitHub Sync",
-  "version": "0.0.6",
+  "version": "1.0.0",
   "minAppVersion": "1.7.7",
-  "description": "A plugin to sync a Github repository with an Obsidian vault.",
+  "description": "Sync a GitHub repository with Obsidian vaults on different platforms",
   "author": "Silvano Cerza",
   "authorUrl": "https://silvanocerza.com",
   "fundingUrl": "https://ko-fi.com/silvanocerza",

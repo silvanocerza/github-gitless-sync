@@ -1,7 +1,7 @@
 {
   "name": "obsidian-github-sync",
-  "version": "0.0.6",
-  "description": "A plugin to sync a Github repository with an Obsidian vault",
+  "version": "1.0.0",
+  "description": "Sync a GitHub repository with Obsidian vaults on different platforms",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
