@@ -953,4 +953,9 @@ export default class SyncManager {
     this.stopSyncInterval();
     return this.startSyncInterval(minutes);
   }
+
+  async resetMetadata() {
+    this.metadataStore.reset();
+    await this.metadataStore.save();
+  }
 }

@@ -287,4 +287,10 @@ export default class GitHubSyncPlugin extends Plugin {
     this.syncManager.stopSyncInterval();
     this.syncManager.startSyncInterval(this.settings.syncInterval);
   }
+
+  async reset() {
+    this.settings = DEFAULT_SETTINGS;
+    this.saveSettings();
+    await this.syncManager.resetMetadata();
+  }
 }

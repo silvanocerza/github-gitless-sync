@@ -1,4 +1,4 @@
-import { PluginSettingTab, App, Setting, TextComponent } from "obsidian";
+import { PluginSettingTab, App, Setting, TextComponent, Modal } from "obsidian";
 import GitHubSyncPlugin from "src/main";
 
 export default class GitHubSyncSettingsTab extends PluginSettingTab {
@@ -267,6 +267,40 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
               this.plugin.logger.disable();
             }
             this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Reset")
+      .setDesc("Reset the plugin settings and metadata")
+      .addButton((button) => {
+        button
+          .setButtonText("RESET")
+          .setCta()
+          .onClick(() => {
+            const modal = new Modal(this.plugin.app);
+            modal.setTitle("Are you sure?");
+            modal.setContent(
+              "This will completely delete all sync metadata and plugin settings.\n" +
+                "You'll have to repeat the first sync if you want to use the plugin again.",
+            );
+            new Setting(modal.contentEl);
+            new Setting(modal.contentEl)
+              .addButton((btn) =>
+                btn
+                  .setButtonText("Reset")
+                  .setCta()
+                  .onClick(async () => {
+                    await this.plugin.reset();
+                    modal.close();
+                  }),
+              )
+              .addButton((btn) =>
+                btn.setButtonText("Cancel").onClick(() => {
+                  modal.close();
+                }),
+              );
+            modal.open();
           });
       });
   }

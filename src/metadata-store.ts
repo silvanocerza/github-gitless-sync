@@ -77,4 +77,8 @@ export default class MetadataStore {
     });
     return this.writeQueue;
   }
+
+  reset() {
+    this.data = { lastSync: 0, files: {} };
+  }
 }
