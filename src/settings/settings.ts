@@ -31,5 +31,5 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   showStatusBarItem: true,
   showSyncRibbonButton: true,
   showConflictsRibbonButton: true,
-  enableLogging: true,
+  enableLogging: false,
 };
