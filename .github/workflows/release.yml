@@ -29,4 +29,4 @@ jobs:
         run: |
           gh release create "${{ github.ref_name }}" \
             --title="${{ github.ref_name }}" \
-            main.js manifest.json
+            main.js manifest.json styles.css
