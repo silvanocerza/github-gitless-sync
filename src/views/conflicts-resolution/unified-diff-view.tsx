@@ -1,6 +1,7 @@
 import * as React from "react";
 import CodeMirror, {
   EditorState,
+  Range,
   RangeSetBuilder,
   StateEffect,
   StateField,
@@ -306,7 +307,7 @@ const createBlockDecorations = (
     [rangesStateField],
     (state: EditorState) => {
       const ranges = state.field(rangesStateField);
-      let widgets = [];
+      let widgets: Range<Decoration>[] = [];
 
       ranges.forEach((range: ConflictRange, index: number) => {
         if (range.source === "both") {
