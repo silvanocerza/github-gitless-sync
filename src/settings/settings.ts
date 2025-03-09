@@ -9,6 +9,7 @@ export interface GitHubSyncSettings {
   syncOnStartup: boolean;
   syncConfigDir: boolean;
   conflictHandling: "overwriteLocal" | "ask" | "overwriteRemote";
+  conflictViewMode: "default" | "unified" | "split";
   showStatusBarItem: boolean;
   showSyncRibbonButton: boolean;
   showConflictsRibbonButton: boolean;
@@ -26,6 +27,7 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   syncOnStartup: false,
   syncConfigDir: true,
   conflictHandling: "ask",
+  conflictViewMode: "default",
   showStatusBarItem: true,
   showSyncRibbonButton: true,
   showConflictsRibbonButton: true,

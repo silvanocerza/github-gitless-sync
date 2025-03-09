@@ -231,6 +231,24 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           });
       });
 
+    const diffModeOptions = {
+      default: "Default",
+      unified: "Unified",
+      split: "Split",
+    };
+    new Setting(containerEl)
+      .setName("Conflict resolution view mode")
+      .setDesc("Set which diff view mode should be shown in case of conflicts")
+      .addDropdown((dropdown) => {
+        dropdown
+          .addOptions(diffModeOptions)
+          .setValue(this.plugin.settings.conflictViewMode)
+          .onChange(async (value: keyof typeof diffModeOptions) => {
+            this.plugin.settings.conflictViewMode = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
     containerEl.createEl("h2", { text: "Extra" });
 
     new Setting(containerEl)
