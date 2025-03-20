@@ -14,7 +14,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: "Remote Repository" });
+    new Setting(containerEl).setName("Remote Repository").setHeading();
 
     let tokenInput: TextComponent;
     new Setting(containerEl)
@@ -83,7 +83,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           }),
       );
 
-    containerEl.createEl("h2", { text: "Sync" });
+    new Setting(containerEl).setName("Sync").setHeading();
 
     const syncStrategies = {
       manual: "Manually",
@@ -181,7 +181,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           });
       });
 
-    containerEl.createEl("h2", { text: "Interface" });
+    new Setting(containerEl).setName("Interface").setHeading();
 
     new Setting(containerEl)
       .setName("Show status bar item")
@@ -247,7 +247,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           });
       });
 
-    containerEl.createEl("h2", { text: "Extra" });
+    new Setting(containerEl).setName("Extra").setHeading();
 
     new Setting(containerEl)
       .setName("Enable logging")
