@@ -14,8 +14,6 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
 
     containerEl.empty();
 
-    containerEl.createEl("h1", { text: "GitHub Sync Settings" });
-
     containerEl.createEl("h2", { text: "Remote Repository" });
 
     let tokenInput: TextComponent;
