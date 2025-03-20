@@ -1,7 +1,8 @@
-import { Vault, TAbstractFile, TFolder } from "obsidian";
+import { Vault, TAbstractFile, TFolder, EventRef } from "obsidian";
 import MetadataStore, { MANIFEST_FILE_NAME } from "./metadata-store";
 import { GitHubSyncSettings } from "./settings/settings";
 import Logger from "./logger";
+import GitHubSyncPlugin from "./main";
 
 /**
  * Tracks changes to local sync directory and updates files metadata.
@@ -14,11 +15,14 @@ export default class EventsListener {
     private logger: Logger,
   ) {}
 
-  start() {
-    this.vault.on("create", this.onCreate.bind(this));
-    this.vault.on("delete", this.onDelete.bind(this));
-    this.vault.on("modify", this.onModify.bind(this));
-    this.vault.on("rename", this.onRename.bind(this));
+  start(plugin: GitHubSyncPlugin) {
+    // We need to register all the events we subscribe to so they can
+    // be correctly detached when the plugin is unloaded too.
+    // If we don't they might be left hanging and cause issues.
+    plugin.registerEvent(this.vault.on("create", this.onCreate.bind(this)));
+    plugin.registerEvent(this.vault.on("delete", this.onDelete.bind(this)));
+    plugin.registerEvent(this.vault.on("modify", this.onModify.bind(this)));
+    plugin.registerEvent(this.vault.on("rename", this.onRename.bind(this)));
   }
 
   private async onCreate(file: TAbstractFile) {

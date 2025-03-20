@@ -1,4 +1,10 @@
-import { Vault, Notice, normalizePath, base64ToArrayBuffer } from "obsidian";
+import {
+  Vault,
+  Notice,
+  normalizePath,
+  base64ToArrayBuffer,
+  EventRef,
+} from "obsidian";
 import GithubClient, {
   GetTreeResponseItem,
   NewTreeRequestItem,
@@ -13,6 +19,7 @@ import EventsListener from "./events-listener";
 import { GitHubSyncSettings } from "./settings/settings";
 import Logger from "./logger";
 import { decodeBase64String } from "./utils";
+import GitHubSyncPlugin from "./main";
 
 interface SyncAction {
   type: "upload" | "download" | "delete_local" | "delete_remote";
@@ -916,8 +923,8 @@ export default class SyncManager {
     return this.metadataStore.data.files[filePath];
   }
 
-  async startEventsListener() {
-    this.eventsListener.start();
+  startEventsListener(plugin: GitHubSyncPlugin) {
+    this.eventsListener.start(plugin);
   }
 
   /**

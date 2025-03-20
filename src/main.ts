@@ -107,7 +107,7 @@ export default class GitHubSyncPlugin extends Plugin {
       // getting spammed with create events.
       // See the official Obsidian docs:
       // https://docs.obsidian.md/Reference/TypeScript+API/Vault/on('create')
-      await this.syncManager.startEventsListener();
+      this.syncManager.startEventsListener(this);
 
       // Load the ribbons after layout is ready so they're shown after the core
       // buttons
