@@ -20,7 +20,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
 
     let tokenInput: TextComponent;
     new Setting(containerEl)
-      .setName("GitHub Token")
+      .setName("GitHub token")
       .setDesc(
         "A personal access token or a fine-grained token with read and write access to your repository",
       )

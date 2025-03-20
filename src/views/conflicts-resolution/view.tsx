@@ -24,7 +24,7 @@ export class ConflictsResolutionView extends ItemView {
   }
 
   getDisplayText() {
-    return "Conflicts Resolution";
+    return "Conflicts resolution";
   }
 
   private resolveAllConflicts(resolutions: ConflictResolution[]) {
