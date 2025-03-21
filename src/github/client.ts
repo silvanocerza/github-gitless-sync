@@ -28,6 +28,13 @@ export type NewTreeRequestItem = {
 };
 
 /**
+ * Response received when we create a new binary blob on GitHub
+ */
+export type CreatedBlob = {
+  sha: string;
+};
+
+/**
  * Represents a git blob response from the GitHub API.
  */
 export type BlobFile = {
@@ -168,6 +175,36 @@ export default class GithubClient {
         `Failed to update branch head sha, status ${res.status}`,
       );
     }
+  }
+
+  /**
+   * Creates a new blob in the GitHub remote, this is mainly used to upload binary files.
+   *
+   * @param content The content of the blob to upload
+   * @param encoding Content encoding, can be "utf-8" or "base64". Defaults to "base64"
+   * @returns The SHA of the newly uploaded blob
+   */
+  async createBlob(
+    content: string,
+    encoding: "utf-8" | "base64" = "base64",
+  ): Promise<CreatedBlob> {
+    const res = await requestUrl({
+      url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/blobs`,
+      headers: this.headers(),
+      method: "POST",
+      body: JSON.stringify({ content, encoding }),
+      throw: false,
+    });
+    if (res.status < 200 || res.status >= 400) {
+      await this.logger.error("Failed to create blob", res);
+      throw new GithubAPIError(
+        res.status,
+        `Failed to create blob, status ${res.status}`,
+      );
+    }
+    return {
+      sha: res.json["sha"],
+    };
   }
 
   /**

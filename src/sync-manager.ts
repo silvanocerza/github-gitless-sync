@@ -4,6 +4,7 @@ import {
   normalizePath,
   base64ToArrayBuffer,
   EventRef,
+  arrayBufferToBase64,
 } from "obsidian";
 import GithubClient, {
   GetTreeResponseItem,
@@ -20,6 +21,7 @@ import { GitHubSyncSettings } from "./settings/settings";
 import Logger from "./logger";
 import { decodeBase64String } from "./utils";
 import GitHubSyncPlugin from "./main";
+import { fileTypeFromBuffer } from "file-type";
 
 interface SyncAction {
   type: "upload" | "download" | "delete_local" | "delete_remote";
@@ -666,8 +668,8 @@ export default class SyncManager {
    * @returns String containing the file SHA1
    */
   async calculateSHA(filePath: string): Promise<string> {
-    const content = await this.vault.adapter.read(filePath);
-    const contentBytes = new TextEncoder().encode(content);
+    const contentBuffer = await this.vault.adapter.readBinary(filePath);
+    const contentBytes = new Uint8Array(contentBuffer);
     const header = new TextEncoder().encode(`blob ${contentBytes.length}\0`);
     const store = new Uint8Array([...header, ...contentBytes]);
     return await crypto.subtle.digest("SHA-1", store).then((hash) =>
@@ -713,11 +715,40 @@ export default class SyncManager {
     // We don't save the metadata file after setting the SHAs cause we do that when
     // the sync is fully commited at the end.
     // TODO: Understand whether it's a problem we don't revert the SHA setting in case of sync failure
+    //
+    // In here we also upload blob is file is a binary. We do it here because when uploading a blob we
+    // also get back its SHA, so we can set it together with other files.
+    // We also do that right before creating the new tree because we need the SHAs of those blob to
+    // correctly create it.
     await Promise.all(
       Object.keys(treeFiles)
         .filter((filePath: string) => treeFiles[filePath].content)
         .map(async (filePath: string) => {
-          const newSha = await this.calculateSHA(filePath);
+          const buffer = await this.vault.adapter.readBinary(filePath);
+          const fileType = await fileTypeFromBuffer(buffer);
+          let newSha = "";
+          if (
+            // We can't determine the file type
+            fileType === undefined ||
+            // This is not a text file
+            !fileType.mime.startsWith("text/") ||
+            // Neither a json file
+            fileType.mime !== "application/json"
+          ) {
+            // We treat this file as a binary file. We can't upload these setting the content
+            // of a tree item, we first need to create a Git blob by uploading the file, then
+            // we must update the tree item to point the SHA to the blob we just created.
+            const hash = arrayBufferToBase64(buffer);
+            const { sha } = await this.client.createBlob(hash);
+            treeFiles[filePath].sha = sha;
+            // Can't have both sha and content set, so we delete it
+            delete treeFiles[filePath].content;
+            newSha = sha;
+          } else {
+            // File is text, we can upload the content directly
+            // so we just calculate the new SHA to keep track of it
+            newSha = await this.calculateSHA(filePath);
+          }
           this.metadataStore.data.files[filePath].sha = newSha;
         }),
     );
