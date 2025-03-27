@@ -20,15 +20,9 @@ These are the main features of the plugin:
 
 ## Installation
 
-The plugin is still not available in the community plugins.
+The plugin is available as a community plugin, you can easily search for it in Obsidian and install it from there.
 
-For the time being you can install it with BRAT. If you never used BRAT see [the official quick start guide](https://tfthacker.com/brat-quick-guide).
-
-If you already have BRAT installed to install GitHub Sync copy the following link and paste it in the browser address bar.
-
-```
-obsidian://brat?plugin=https://github.com/silvanocerza/obsidian-github-sync
-```
+![Obsidian community plugin settings](./assets/install_instructions.png)
 
 ### Issues
 
