@@ -14,7 +14,7 @@ export class Vault {
 
   constructor(rootPath: string) {
     this.rootPath = rootPath;
-    this.configDir = path.join(this.rootPath, ".obsidian");
+    this.configDir = ".obsidian";
 
     // Ensure vault directory exists
     if (!existsSync(this.rootPath)) {
@@ -22,8 +22,8 @@ export class Vault {
     }
 
     // Ensure config directory exists
-    if (!existsSync(this.configDir)) {
-      mkdirSync(this.configDir, { recursive: true });
+    if (!existsSync(path.join(this.rootPath, this.configDir))) {
+      mkdirSync(path.join(this.rootPath, this.configDir), { recursive: true });
     }
   }
 
@@ -122,41 +122,17 @@ interface RequestUrlParam {
 }
 
 export async function requestUrl(options: RequestUrlParam) {
-  try {
-    const response = await fetch(options.url, {
-      method: options.method || "GET",
-      headers: options.headers,
-      body: options.body,
-    });
+  const response = await fetch(options.url, {
+    method: options.method || "GET",
+    headers: options.headers,
+    body: options.body,
+  });
 
-    const arrayBuffer = await response.arrayBuffer();
-    const text = new TextDecoder("utf-8").decode(arrayBuffer);
-    let json = null;
-
-    json = JSON.parse(text);
-
-    // Convert to expected Obsidian response format
-    const obsidianResponse = {
-      status: response.status,
-      json: () => Promise.resolve(json),
-    };
-
-    if (!response.ok) {
-      const err = new Error(`Request failed with status ${response.status}`);
-      err.response = obsidianResponse;
-      throw err;
-    }
-
-    return obsidianResponse;
-  } catch (error) {
-    if (error.response) {
-      // Error already formatted with Obsidian response
-      throw error;
-    }
-
-    // Network error or other fetch error
-    throw new Error(`Request failed: ${error.message}`);
-  }
+  // Convert to expected Obsidian response format
+  return {
+    status: response.status,
+    json: await response.json(),
+  };
 }
 
 // Mock utility functions
