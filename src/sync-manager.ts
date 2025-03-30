@@ -3,7 +3,6 @@ import {
   Notice,
   normalizePath,
   base64ToArrayBuffer,
-  EventRef,
   arrayBufferToBase64,
 } from "obsidian";
 import GithubClient, {
