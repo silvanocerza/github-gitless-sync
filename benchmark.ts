@@ -4,6 +4,8 @@ import * as obsidianMocks from "./mock-obsidian";
 import * as os from "os";
 import * as path from "path";
 import * as crypto from "crypto";
+import { execSync } from "child_process";
+
 const proxyquireNonStrict = proxyquire.noCallThru();
 
 const LoggerModule = proxyquireNonStrict("./src/logger", {
@@ -164,35 +166,37 @@ const generateRandomFiles = (
 };
 
 const cleanupRemote = async () => {
-  const owner = process.env.REPO_OWNER;
-  const repo = process.env.REPO_NAME;
-  const branch = process.env.REPO_BRANCH;
-  const headers = {
-    Accept: "application/vnd.github+json",
-    Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-    "X-GitHub-Api-Version": "2022-11-28",
-  };
+  const url = `git@github.com:${process.env.REPO_OWNER}/${process.env.REPO_NAME}.git`;
+  const clonedDir = path.join(os.tmpdir(), "temp-clone");
+
   try {
-    // Get the manifest SHA
-    const contentResponse = await obsidianMocks.requestUrl({
-      url: `https://api.github.com/repos/${owner}/${repo}/contents/.obsidian/github-sync-metadata.json?ref=${branch}`,
-      headers: headers,
+    // Clone the repository
+    execSync(`git clone ${url} ${clonedDir}`, { stdio: "ignore" });
+
+    // Remove all files except .git
+    execSync('find . -type f -not -path "./.git*" -delete', {
+      stdio: "ignore",
+      cwd: clonedDir,
     });
 
-    // Delete manifest
-    await obsidianMocks.requestUrl({
-      url: `https://api.github.com/repos/${owner}/${repo}/contents/.obsidian/github-sync-metadata.json`,
-      method: "DELETE",
-      headers: headers,
-      body: JSON.stringify({
-        message: "Cleanup",
-        sha: contentResponse.json.sha,
-        branch: branch,
-      }),
+    // Commit empty state
+    execSync("git add -A", { stdio: "ignore", cwd: clonedDir });
+    execSync('git commit -m "Cleanup"', {
+      stdio: "ignore",
+      cwd: clonedDir,
     });
-    console.log("Remote repository cleaned up successfully");
+
+    // Push changes
+    execSync("git push", { stdio: "ignore", cwd: clonedDir });
+
+    // Remove the folder
+    fs.rm(clonedDir, { recursive: true, force: true }, (err) => {
+      if (err) {
+        throw err;
+      }
+    });
   } catch (error) {
-    console.error("Failed to clean up remote repository:", error);
+    console.error(`Error: ${error.message}`);
   }
 };
 
