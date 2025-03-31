@@ -72,6 +72,11 @@ const generateRandomFiles = (
   maxDepth: number,
   maxTotalSize: number,
 ) => {
+  const metadata: { lastSync: number; files: { [key: string]: {} } } = {
+    lastSync: 0,
+    files: {},
+  };
+
   // Create root directory if it doesn't exist
   if (!fs.existsSync(rootPath)) {
     fs.mkdirSync(rootPath, { recursive: true });
@@ -136,7 +141,24 @@ const generateRandomFiles = (
       fs.writeFileSync(filePath, content);
       totalSize += contentSize;
     }
+
+    const relativeFilePath = filePath.replace(`${rootPath}/`, "");
+    metadata.files[relativeFilePath] = {
+      path: relativeFilePath,
+      sha: null,
+      dirty: true,
+      justDownloaded: false,
+      lastModified: Date.now(),
+    };
   }
+
+  const metadataFilePath = path.join(
+    rootPath,
+    ".obsidian",
+    "github-sync-metadata.json",
+  );
+  fs.mkdirSync(path.join(rootPath, ".obsidian"));
+  fs.writeFileSync(metadataFilePath, JSON.stringify(metadata), { flag: "w" });
 
   return totalSize;
 };
