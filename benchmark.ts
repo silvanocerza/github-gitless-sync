@@ -72,7 +72,7 @@ const generateRandomFiles = (
   rootPath: string,
   numFiles: number,
   maxDepth: number,
-  maxTotalSize: number,
+  fileSize: number,
 ) => {
   const metadata: { lastSync: number; files: { [key: string]: {} } } = {
     lastSync: 0,
@@ -108,9 +108,7 @@ const generateRandomFiles = (
   }
 
   // Now generate files
-  let totalSize = 0;
-  // Calculate approximate size per file to ensure we create all files
-  const targetSizePerFile = Math.floor(maxTotalSize / numFiles);
+  const contentSize = fileSize / 2; // We divide by two as converting bytes to hex doubles the size
 
   for (let i = 0; i < numFiles; i++) {
     // Pick a random folder to place the file in
@@ -121,28 +119,11 @@ const generateRandomFiles = (
     const fileName = crypto.randomBytes(8).toString("hex") + ".md";
     const filePath = path.join(targetFolder, fileName);
 
-    // Calculate remaining size and files
-    const remainingSize = maxTotalSize - totalSize;
-    const remainingFiles = numFiles - i;
+    // Generate random content
+    const content = crypto.randomBytes(contentSize).toString("hex");
 
-    if (remainingSize <= 0) {
-      // If we've hit the max size but still need files, create empty files
-      fs.writeFileSync(filePath, "");
-    } else {
-      // Calculate appropriate file size to ensure we can create all files
-      const maxPossibleSize = Math.floor(remainingSize / remainingFiles);
-      const contentSize =
-        Math.floor(
-          Math.random() * Math.min(maxPossibleSize, targetSizePerFile),
-        ) + 1;
-
-      // Generate random content
-      const content = crypto.randomBytes(contentSize).toString("hex");
-
-      // Write file
-      fs.writeFileSync(filePath, content);
-      totalSize += contentSize;
-    }
+    // Write file
+    fs.writeFileSync(filePath, content);
 
     const relativeFilePath = filePath.replace(`${rootPath}/`, "");
     metadata.files[relativeFilePath] = {
@@ -161,8 +142,6 @@ const generateRandomFiles = (
   );
   fs.mkdirSync(path.join(rootPath, ".obsidian"));
   fs.writeFileSync(metadataFilePath, JSON.stringify(metadata), { flag: "w" });
-
-  return totalSize;
 };
 
 const cleanupRemote = async () => {
@@ -204,7 +183,7 @@ const BENCHMARK_DATA = [
   {
     files: 1,
     maxDepth: 1,
-    maxSize: 7000,
+    fileSize: 7 * 1024 * 1024,
   },
 ];
 
@@ -216,14 +195,14 @@ const BENCHMARK_DATA = [
     for (const data of BENCHMARK_DATA) {
       const vaultRootDir = path.join(
         benchmarkRootDir,
-        `${data.files}-${data.maxDepth}-${data.maxSize}`,
+        `${data.files}-${data.maxDepth}-${data.fileSize}`,
       );
       // Generates random files
       generateRandomFiles(
         vaultRootDir,
         data.files,
         data.maxDepth,
-        data.maxSize,
+        data.fileSize,
       );
 
       // Run first sync by uploading all local files
