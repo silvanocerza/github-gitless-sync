@@ -723,6 +723,19 @@ export default class SyncManager {
       Object.keys(treeFiles)
         .filter((filePath: string) => treeFiles[filePath].content)
         .map(async (filePath: string) => {
+          // Some Markdown or JSON files might grow to be quite big, that makes it
+          // impossible for the file-type library to guess their file type.
+          // It also increases the amount of memory used by A LOT and might cause
+          // issues in devices with low memory if there are lots of files to check.
+          //
+          // I don't fully trust file extensions as they're not completely reliable
+          // to determine the file type, though I feel it's ok to compromise and rely
+          // on them if it makes the plugin handle upload better on certain devices.
+          if (filePath.endsWith(".md") || filePath.endsWith(".json")) {
+            this.metadataStore.data.files[filePath].sha =
+              await this.calculateSHA(filePath);
+            return;
+          }
           const buffer = await this.vault.adapter.readBinary(filePath);
           const fileType = await fileTypeFromBuffer(buffer);
           let newSha = "";
