@@ -39,7 +39,6 @@ const SyncManagerModule = proxyquireNonStrict("./src/sync-manager", {
 
 async function runBenchmark(vaultRootDir: string) {
   const vault = new obsidianMocks.Vault(vaultRootDir);
-  console.log("Vault config dir:", vault.configDir);
 
   // Create a real logger with our mock vault
   const logger = new LoggerModule.default(vault, false);
@@ -182,8 +181,39 @@ const cleanupRemote = async () => {
 const BENCHMARK_DATA = [
   {
     files: 1,
-    maxDepth: 1,
-    fileSize: 7 * 1024 * 1024,
+    maxDepth: 0,
+    // 15 Kb
+    fileSize: 1024 * 15,
+  },
+  {
+    files: 10,
+    maxDepth: 0,
+    // 15 Kb
+    fileSize: 1024 * 15,
+  },
+  {
+    files: 100,
+    maxDepth: 0,
+    // 15 Kb
+    fileSize: 1024 * 15,
+  },
+  {
+    files: 1000,
+    maxDepth: 0,
+    // 15 Kb
+    fileSize: 1024 * 15,
+  },
+  {
+    files: 10000,
+    maxDepth: 0,
+    // 15 Kb
+    fileSize: 1024 * 15,
+  },
+  {
+    files: 100000,
+    maxDepth: 0,
+    // 15 Kb
+    fileSize: 1024 * 15,
   },
 ];
 
@@ -193,6 +223,9 @@ const BENCHMARK_DATA = [
   try {
     const results = [];
     for (const data of BENCHMARK_DATA) {
+      console.log(
+        `Running benchmark for ${data.files} files of ${data.fileSize} bytes`,
+      );
       const vaultRootDir = path.join(
         benchmarkRootDir,
         `${data.files}-${data.maxDepth}-${data.fileSize}`,
@@ -222,6 +255,9 @@ const BENCHMARK_DATA = [
         uploadTime,
         downloadTime,
       });
+
+      // Cleanup vault dir again, it's not necessary to keep it around
+      fs.rmSync(vaultRootDir, { recursive: true, force: true });
     }
     fs.writeFileSync("benchmark_result.json", JSON.stringify(results), {
       flag: "w",
