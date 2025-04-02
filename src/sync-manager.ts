@@ -22,6 +22,54 @@ import { decodeBase64String } from "./utils";
 import GitHubSyncPlugin from "./main";
 import { fileTypeFromBuffer } from "file-type";
 
+/**
+ * Sleep for a specified duration
+ * @param ms Milliseconds to sleep
+ */
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
+ * Executes a function with exponential backoff retry logic
+ * @param fn Function to execute
+ * @param retries Maximum number of retries
+ * @param initialDelay Initial delay in milliseconds
+ * @param maxDelay Maximum delay in milliseconds
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  retries = 10,
+  initialDelay = 1000,
+  maxDelay = 60000
+): Promise<T> {
+  let attempts = 0;
+  let delay = initialDelay;
+  
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempts++;
+      
+      // If we've reached max retries or this isn't a rate limit error, throw
+      if (attempts >= retries || 
+          !(error?.message?.includes?.('rate limit') || 
+            (error?.json?.message?.includes?.('rate limit') || 
+             error?.text?.includes?.('rate limit')))) {
+        throw error;
+      }
+      
+      // Calculate next delay with exponential backoff
+      delay = Math.min(delay * 2, maxDelay);
+      
+      // Log the retry
+      console.log(`Rate limit hit. Retrying in ${delay/1000} seconds... (Attempt ${attempts}/${retries})`);
+      
+      // Wait before retrying
+      await sleep(delay);
+    }
+  }
+}
+
 interface SyncAction {
   type: "upload" | "download" | "delete_local" | "delete_remote";
   filePath: string;
@@ -751,7 +799,9 @@ export default class SyncManager {
             // of a tree item, we first need to create a Git blob by uploading the file, then
             // we must update the tree item to point the SHA to the blob we just created.
             const hash = arrayBufferToBase64(buffer);
-            const { sha } = await this.client.createBlob(hash);
+            const { sha } = await withRetry(async () => {
+              return await this.client.createBlob(hash);
+            });
             treeFiles[filePath].sha = sha;
             // Can't have both sha and content set, so we delete it
             delete treeFiles[filePath].content;
