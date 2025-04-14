@@ -122,9 +122,9 @@ Also since this relies only on the GitHub APIs you can only sync with GitHub and
 
 No.
 
-To to work correctly this plugin uses a custom metadata file that is updated every time we sync, if you commit changes outside the plugin that file is not updated properly.
+To work correctly this plugin uses a custom metadata file that is updated every time we sync, if you commit changes outside the plugin that file is not updated properly.
 
-Other plugins don't know about that file, so if you sync with others too you risk breaking everything.
+Other plugins don't know about that file, so if you sync with others too you risk losing data.
 
 ## License
 
