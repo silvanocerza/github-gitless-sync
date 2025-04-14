@@ -102,7 +102,9 @@ If you need to reset the plugin settings and metadata you can easily do that in 
 
 That will completely wipe all the sync metadata so you'll have to repeat the first sync as if you just enabled the plugin for the first time.
 
-## What's different from other sync plugins?
+## FAQs
+
+### What's different from other sync plugins?
 
 There are obviously other plugins that let you sync your vault with GitHub or other git hosts, like [`obsidian-git`](https://github.com/Vinzent03/obsidian-git) and [`Obsidian-GitHub-Sync`](https://github.com/kevinmkchin/Obsidian-GitHub-Sync) just to name a couple.
 
@@ -115,6 +117,14 @@ So I went a different way and chose to sync **only** with GitHub using their RES
 This obviously comes with some limitations. Since `git` is not used you can't interact with your repository locally in any way, and any `git` feature like branching, merging, or rebasing, are not available at all.
 
 Also since this relies only on the GitHub APIs you can only sync with GitHub and no other host.
+
+### Can I use this with other sync plugins?
+
+No.
+
+To to work correctly this plugin uses a custom metadata file that is updated every time we sync, if you commit changes outside the plugin that file is not updated properly.
+
+Other plugins don't know about that file, so if you sync with others too you risk breaking everything.
 
 ## License
 
