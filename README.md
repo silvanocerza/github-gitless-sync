@@ -28,9 +28,9 @@ The plugin is available as a community plugin, you can easily search for it in O
 
 If you find any problem please open an issue with as many details as possible.
 
-Please also provide logs if possible, you can find the `github-sync.log` file in your config directory. Remember to enable logging first.
+Please also provide logs if possible, you can copy them from the settings page. Remember to enable logging first.
 
-![Enable logging](./assets/log_enable.png)
+![Enable logging](./assets/logs_settings.png)
 
 ## Usage
 
