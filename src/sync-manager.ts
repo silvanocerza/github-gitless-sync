@@ -18,9 +18,8 @@ import MetadataStore, {
 import EventsListener from "./events-listener";
 import { GitHubSyncSettings } from "./settings/settings";
 import Logger from "./logger";
-import { decodeBase64String } from "./utils";
+import { decodeBase64String, hasTextExtension } from "./utils";
 import GitHubSyncPlugin from "./main";
-import { fileTypeFromBuffer } from "file-type";
 import { BlobReader, Entry, Uint8ArrayWriter, ZipReader } from "@zip.js/zip.js";
 
 interface SyncAction {
@@ -742,45 +741,25 @@ export default class SyncManager {
       Object.keys(treeFiles)
         .filter((filePath: string) => treeFiles[filePath].content)
         .map(async (filePath: string) => {
-          // Some Markdown or JSON files might grow to be quite big, that makes it
-          // impossible for the file-type library to guess their file type.
-          // It also increases the amount of memory used by A LOT and might cause
-          // issues in devices with low memory if there are lots of files to check.
-          //
           // I don't fully trust file extensions as they're not completely reliable
           // to determine the file type, though I feel it's ok to compromise and rely
           // on them if it makes the plugin handle upload better on certain devices.
-          if (filePath.endsWith(".md") || filePath.endsWith(".json")) {
-            this.metadataStore.data.files[filePath].sha =
-              await this.calculateSHA(filePath);
+          if (hasTextExtension(filePath)) {
+            const sha = await this.calculateSHA(filePath);
+            this.metadataStore.data.files[filePath].sha = sha;
             return;
           }
+
+          // We can't upload binary files by setting the content of a tree item,
+          // we first need to create a Git blob by uploading the file, then
+          // we must update the tree item to point the SHA to the blob we just created.
           const buffer = await this.vault.adapter.readBinary(filePath);
-          const fileType = await fileTypeFromBuffer(buffer);
-          let newSha = "";
-          if (
-            // We can't determine the file type
-            fileType === undefined ||
-            // This is not a text file
-            !fileType.mime.startsWith("text/") ||
-            // Neither a json file
-            fileType.mime !== "application/json"
-          ) {
-            // We treat this file as a binary file. We can't upload these setting the content
-            // of a tree item, we first need to create a Git blob by uploading the file, then
-            // we must update the tree item to point the SHA to the blob we just created.
-            const hash = arrayBufferToBase64(buffer);
-            const { sha } = await this.client.createBlob(hash);
-            treeFiles[filePath].sha = sha;
-            // Can't have both sha and content set, so we delete it
-            delete treeFiles[filePath].content;
-            newSha = sha;
-          } else {
-            // File is text, we can upload the content directly
-            // so we just calculate the new SHA to keep track of it
-            newSha = await this.calculateSHA(filePath);
-          }
-          this.metadataStore.data.files[filePath].sha = newSha;
+          const hash = arrayBufferToBase64(buffer);
+          const { sha } = await this.client.createBlob(hash);
+          treeFiles[filePath].sha = sha;
+          // Can't have both sha and content set, so we delete it
+          delete treeFiles[filePath].content;
+          this.metadataStore.data.files[filePath].sha = sha;
         }),
     );
 

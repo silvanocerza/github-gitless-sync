@@ -1,5 +1,15 @@
 import { base64ToArrayBuffer } from "obsidian";
 
+const TEXT_EXTENSIONS = [
+  ".css",
+  ".md",
+  ".json",
+  ".txt",
+  ".csv",
+  ".js",
+  ".log",
+] as const;
+
 /**
  * Decodes a base64 encoded string, this properly
  * handles emojis and other non ASCII chars.
@@ -36,4 +46,20 @@ export async function copyToClipboard(text: string) {
     document.execCommand("copy");
     document.body.removeChild(textarea);
   }
+}
+
+/**
+ * Checks if a file path has one of the predefined text extensions.
+ * This is a best guess at best.
+ *
+ * @param filePath The path of the file to check
+ * @returns True if the file has a text extension, false otherwise
+ */
+export function hasTextExtension(filePath: string) {
+  for (const extension in TEXT_EXTENSIONS) {
+    if (filePath.endsWith(extension)) {
+      return true;
+    }
+  }
+  return false;
 }
