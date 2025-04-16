@@ -254,4 +254,27 @@ export default class GithubClient {
       );
     }
   }
+
+  /**
+   * Downloads the repository as a ZIP archive from GitHub.
+   *
+   * @returns The archive contents as an ArrayBuffer
+   */
+  async downloadRepositoryArchive(): Promise<ArrayBuffer> {
+    const res = await requestUrl({
+      url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/zipball/${this.settings.githubBranch}`,
+      headers: this.headers(),
+      method: "GET",
+      throw: false,
+    });
+
+    if (res.status < 200 || res.status >= 400) {
+      await this.logger.error("Failed to download zip archive", res);
+      throw new GithubAPIError(
+        res.status,
+        `Failed to download zip archive, status ${res.status}`,
+      );
+    }
+    return res.arrayBuffer;
+  }
 }

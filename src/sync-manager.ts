@@ -21,6 +21,7 @@ import Logger from "./logger";
 import { decodeBase64String } from "./utils";
 import GitHubSyncPlugin from "./main";
 import { fileTypeFromBuffer } from "file-type";
+import { BlobReader, Entry, Uint8ArrayWriter, ZipReader } from "@zip.js/zip.js";
 
 interface SyncAction {
   type: "upload" | "download" | "delete_local" | "delete_remote";
@@ -187,24 +188,42 @@ export default class SyncManager {
     treeSha: string,
   ) {
     await this.logger.info("Starting first sync from remote files");
+
+    // We want to avoid getting throttled by GitHub, so instead of making a request for each
+    // file we download the whole repository as a ZIP file and extract it in the vault.
+    // We exclude config dir files if the user doesn't want to sync those.
+    const zipBuffer = await this.client.downloadRepositoryArchive();
+    const zipBlob = new Blob([zipBuffer]);
+    const reader = new ZipReader(new BlobReader(zipBlob));
+    const entries = await reader.getEntries();
+
     await Promise.all(
-      Object.keys(files)
-        .filter((filePath: string) => {
-          if (
-            this.settings.syncConfigDir &&
-            filePath.startsWith(this.vault.configDir) &&
-            filePath !== `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
-          ) {
-            // Include files in the config dir only if the user has enabled it.
-            // The metadata file must always be synced.
-            return false;
-          }
-          return true;
-        })
-        .map(async (filePath: string) => {
-          await this.downloadFile(files[filePath], Date.now());
-        }),
+      entries.map(async (entry: Entry) => {
+        if (
+          this.settings.syncConfigDir &&
+          entry.filename.startsWith(this.vault.configDir) &&
+          entry.filename !== `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
+        ) {
+          // If the user doesn't want to sync the config directory ignore it completely,
+          // apart from the metadata file as that must always be synced so the plugin behaves
+          // correctly.
+          return;
+        }
+
+        const writer = new Uint8ArrayWriter();
+        await entry.getData!(writer);
+        const data = await writer.getData();
+        const dir = entry.filename.split("/").splice(0, -1).join("/");
+        if (dir !== "") {
+          await this.vault.adapter.mkdir(normalizePath(dir));
+        }
+        await this.vault.adapter.writeBinary(
+          normalizePath(entry.filename),
+          data,
+        );
+      }),
     );
+
     const newTreeFiles = Object.keys(files)
       .map((filePath: string) => ({
         path: files[filePath].path,
