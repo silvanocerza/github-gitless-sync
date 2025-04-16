@@ -1,4 +1,4 @@
-import { Vault, TAbstractFile, TFolder, EventRef } from "obsidian";
+import { Vault, TAbstractFile, TFolder } from "obsidian";
 import MetadataStore, { MANIFEST_FILE_NAME } from "./metadata-store";
 import { GitHubSyncSettings } from "./settings/settings";
 import Logger from "./logger";
