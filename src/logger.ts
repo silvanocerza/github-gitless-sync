@@ -40,6 +40,14 @@ export default class Logger {
     );
   }
 
+  async read(): Promise<string> {
+    return await this.vault.adapter.read(this.logFile);
+  }
+
+  async clean(): Promise<void> {
+    return await this.vault.adapter.write(this.logFile, "");
+  }
+
   enable(): void {
     this.enabled = true;
   }

@@ -1,5 +1,13 @@
-import { PluginSettingTab, App, Setting, TextComponent, Modal } from "obsidian";
+import {
+  PluginSettingTab,
+  App,
+  Setting,
+  TextComponent,
+  Modal,
+  Notice,
+} from "obsidian";
 import GitHubSyncPlugin from "src/main";
+import { copyToClipboard } from "src/utils";
 
 export default class GitHubSyncSettingsTab extends PluginSettingTab {
   plugin: GitHubSyncPlugin;
@@ -266,6 +274,30 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
             }
             this.plugin.saveSettings();
           });
+      });
+
+    new Setting(containerEl)
+      .setName("Copy logs")
+      .setDesc("Copy the log file content, this is useful to report bugs.")
+      .addButton((button) => {
+        button.setButtonText("Copy").onClick(async () => {
+          const logs: string = await this.plugin.logger.read();
+          try {
+            await copyToClipboard(logs);
+            new Notice("Logs copied", 5000);
+          } catch (err) {
+            new Notice(`Failed copying logs: ${err}`, 10000);
+          }
+        });
+      });
+
+    new Setting(containerEl)
+      .setName("Clean logs")
+      .setDesc("Delete all existing logs.")
+      .addButton((button) => {
+        button.setButtonText("Clean").onClick(async () => {
+          await this.plugin.logger.clean();
+        });
       });
 
     new Setting(containerEl)
