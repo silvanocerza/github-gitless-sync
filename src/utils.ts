@@ -63,3 +63,37 @@ export function hasTextExtension(filePath: string) {
   }
   return false;
 }
+
+/**
+ * Retries an async function until its return value satisfies a condition or max retries is reached.
+ * Uses exponential backoff between retry attempts.
+ *
+ * @param fn - The async function to execute and potentially retry
+ * @param condition - Function that evaluates if the result is acceptable
+ * @param maxRetries - Maximum number of retry attempts (default: 5)
+ * @param initialDelay - Initial delay in ms before first retry (default: 1000)
+ * @param backoffFactor - Multiplicative factor for delay between retries (default: 2)
+ * @returns The result of the function execution
+ */
+export async function retryUntil<T>(
+  fn: () => Promise<T>,
+  condition: (result: T) => boolean,
+  maxRetries: number = 5,
+  initialDelay: number = 1000,
+  backoffFactor: number = 2,
+): Promise<T> {
+  let retries = 0;
+  let delay = initialDelay;
+
+  while (true) {
+    const result = await fn();
+
+    if (condition(result) || retries >= maxRetries) {
+      return result;
+    }
+
+    retries++;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    delay *= backoffFactor;
+  }
+}
