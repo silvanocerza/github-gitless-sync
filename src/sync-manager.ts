@@ -146,10 +146,11 @@ export default class SyncManager {
         path: `${this.vault.configDir}/${MANIFEST_FILE_NAME}`,
         content: "",
         message: "First sync",
+        retry: true,
       });
       // Now get the repo content again cause we know for sure it will return a
       // valid sha that we can use to create the first sync commit.
-      res = await this.client.getRepoContent();
+      res = await this.client.getRepoContent({ retry: true });
       files = res.files;
       treeSha = res.sha;
     }
@@ -333,7 +334,9 @@ export default class SyncManager {
 
   private async syncImpl() {
     await this.logger.info("Starting sync");
-    const { files, sha: treeSha } = await this.client.getRepoContent();
+    const { files, sha: treeSha } = await this.client.getRepoContent({
+      retry: true,
+    });
     const manifest = files[`${this.vault.configDir}/${MANIFEST_FILE_NAME}`];
 
     if (manifest === undefined) {
@@ -539,6 +542,8 @@ export default class SyncManager {
             await (async () => {
               const res = await this.client.getBlob({
                 sha: filesMetadata[filePath].sha!,
+                retry: true,
+                maxRetries: 1,
               });
               return decodeBase64String(res.content);
             })(),
@@ -762,6 +767,8 @@ export default class SyncManager {
           const buffer = await this.vault.adapter.readBinary(filePath);
           const { sha } = await this.client.createBlob({
             content: arrayBufferToBase64(buffer),
+            retry: true,
+            maxRetries: 3,
           });
           treeFiles[filePath].sha = sha;
           // Can't have both sha and content set, so we delete it
@@ -782,9 +789,12 @@ export default class SyncManager {
       ),
       base_tree: baseTreeSha,
     };
-    const newTreeSha = await this.client.createTree({ tree: newTree });
+    const newTreeSha = await this.client.createTree({
+      tree: newTree,
+      retry: true,
+    });
 
-    const branchHeadSha = await this.client.getBranchHeadSha();
+    const branchHeadSha = await this.client.getBranchHeadSha({ retry: true });
 
     const commitSha = await this.client.createCommit({
       // TODO: Make this configurable or find a nicer commit message
@@ -793,7 +803,7 @@ export default class SyncManager {
       parent: branchHeadSha,
     });
 
-    await this.client.updateBranchHead({ sha: commitSha });
+    await this.client.updateBranchHead({ sha: commitSha, retry: true });
 
     // Update the local content of all files that had conflicts we resolved
     await Promise.all(
@@ -820,7 +830,7 @@ export default class SyncManager {
       // File already exists and has the same SHA, no need to download it again.
       return;
     }
-    const blob = await this.client.getBlob({ sha: file.sha });
+    const blob = await this.client.getBlob({ sha: file.sha, retry: true });
     const normalizedPath = normalizePath(file.path);
     const fileFolder = normalizePath(
       normalizedPath.split("/").slice(0, -1).join("/"),
