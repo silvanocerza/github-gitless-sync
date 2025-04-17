@@ -12,10 +12,6 @@ const LoggerModule = proxyquireNonStrict("./src/logger", {
   obsidian: obsidianMocks,
 });
 
-const GithubClientModule = proxyquireNonStrict("./src/github/client", {
-  obsidian: obsidianMocks,
-});
-
 const MetadataStoreModule = proxyquireNonStrict("./src/metadata-store", {
   obsidian: obsidianMocks,
 });
@@ -27,6 +23,11 @@ const EventsListenerModule = proxyquireNonStrict("./src/events-listener", {
 
 const UtilsModule = proxyquireNonStrict("./src/utils", {
   obsidian: obsidianMocks,
+});
+
+const GithubClientModule = proxyquireNonStrict("./src/github/client", {
+  obsidian: obsidianMocks,
+  "src/utils": UtilsModule,
 });
 
 const SyncManagerModule = proxyquireNonStrict("./src/sync-manager", {
@@ -228,7 +229,7 @@ const BENCHMARK_DATA = [
     const results = [];
     for (const data of BENCHMARK_DATA) {
       console.log(
-        `Running benchmark for ${data.files} files of ${data.fileSize} bytes`,
+        `Running benchmark with ${data.files} files totaling ${data.fileSize} bytes`,
       );
       const vaultRootDir = path.join(
         benchmarkRootDir,
@@ -243,12 +244,14 @@ const BENCHMARK_DATA = [
       );
 
       // Run first sync by uploading all local files
+      console.log("First sync from local");
       const uploadTime = await runBenchmark(vaultRootDir);
 
       // Cleanup vault dir completely
       fs.rmSync(vaultRootDir, { recursive: true, force: true });
 
       // Run first sync again, this time we download the files we just uploaded
+      console.log("Second sync from remote");
       const downloadTime = await runBenchmark(vaultRootDir);
 
       // Cleanup the remote repo so it's ready for another benchmark
@@ -262,6 +265,10 @@ const BENCHMARK_DATA = [
 
       // Cleanup vault dir again, it's not necessary to keep it around
       fs.rmSync(vaultRootDir, { recursive: true, force: true });
+
+      // Wait 2 seconds between each run just to avoid annoying Github
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      console.log("");
     }
     fs.writeFileSync("benchmark_result.json", JSON.stringify(results), {
       flag: "w",
