@@ -128,11 +128,22 @@ export async function requestUrl(options: RequestUrlParam) {
     body: options.body,
   });
 
+  const isJsonResponse = response.headers
+    .get("content-type")
+    ?.includes("application/json");
+
   // Convert to expected Obsidian response format
-  return {
-    status: response.status,
-    json: await response.json(),
-  };
+  if (isJsonResponse) {
+    return {
+      status: response.status,
+      json: await response.json(),
+    };
+  } else {
+    return {
+      status: response.status,
+      arrayBuffer: await response.arrayBuffer(),
+    };
+  }
 }
 
 // Mock utility functions
@@ -150,6 +161,3 @@ export function base64ToArrayBuffer(base64: string): ArrayBuffer {
 
 // Mock Event reference
 export type EventRef = string;
-
-// Re-export the fileTypeFromBuffer function
-export { fileTypeFromBuffer } from "file-type";

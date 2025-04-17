@@ -143,13 +143,21 @@ const generateRandomFiles = (
   fs.writeFileSync(metadataFilePath, JSON.stringify(metadata), { flag: "w" });
 };
 
-const cleanupRemote = async () => {
+const cleanupRemote = () => {
   const url = `git@github.com:${process.env.REPO_OWNER}/${process.env.REPO_NAME}.git`;
   const clonedDir = path.join(os.tmpdir(), "temp-clone");
+
+  // Remove the folder in case it already exists
+  fs.rmSync(clonedDir, { recursive: true, force: true });
 
   try {
     // Clone the repository
     execSync(`git clone ${url} ${clonedDir}`, { stdio: "ignore" });
+
+    const repoExists = fs.existsSync(clonedDir);
+    if (!repoExists) {
+      throw Error("Failed to clone repo");
+    }
 
     // Remove all files except .git
     execSync('find . -type f -not -path "./.git*" -delete', {
@@ -166,16 +174,12 @@ const cleanupRemote = async () => {
 
     // Push changes
     execSync("git push", { stdio: "ignore", cwd: clonedDir });
-
-    // Remove the folder
-    fs.rm(clonedDir, { recursive: true, force: true }, (err) => {
-      if (err) {
-        throw err;
-      }
-    });
   } catch (error) {
     console.error(`Error: ${error.message}`);
   }
+
+  // Remove the folder when everything is done
+  fs.rmSync(clonedDir, { recursive: true, force: true });
 };
 
 const BENCHMARK_DATA = [
@@ -248,7 +252,7 @@ const BENCHMARK_DATA = [
       const downloadTime = await runBenchmark(vaultRootDir);
 
       // Cleanup the remote repo so it's ready for another benchmark
-      await cleanupRemote();
+      cleanupRemote();
 
       results.push({
         data,
@@ -265,9 +269,5 @@ const BENCHMARK_DATA = [
   } catch (error) {
     console.error("Benchmark failed:", error);
   }
-  fs.rm(benchmarkRootDir, { recursive: true, force: true }, (err) => {
-    if (err) {
-      throw err;
-    }
-  });
+  fs.rmSync(benchmarkRootDir, { recursive: true, force: true });
 })();
