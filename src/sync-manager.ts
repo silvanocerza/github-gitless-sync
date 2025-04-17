@@ -142,11 +142,11 @@ export default class SyncManager {
       // API doesn't let us create a new tree when the repo is empty.
       // So we create a the manifest file as the first commit, since we're going
       // to create that in any case right after this.
-      await this.client.createFile(
-        `${this.vault.configDir}/${MANIFEST_FILE_NAME}`,
-        "",
-        "First sync",
-      );
+      await this.client.createFile({
+        path: `${this.vault.configDir}/${MANIFEST_FILE_NAME}`,
+        content: "",
+        message: "First sync",
+      });
       // Now get the repo content again cause we know for sure it will return a
       // valid sha that we can use to create the first sync commit.
       res = await this.client.getRepoContent();
@@ -341,7 +341,7 @@ export default class SyncManager {
       throw new Error("Remote manifest is missing");
     }
 
-    const blob = await this.client.getBlob(manifest.sha);
+    const blob = await this.client.getBlob({ sha: manifest.sha });
     const remoteMetadata: Metadata = JSON.parse(
       decodeBase64String(blob.content),
     );
@@ -537,9 +537,9 @@ export default class SyncManager {
           // Load contents in parallel
           const [remoteContent, localContent] = await Promise.all([
             await (async () => {
-              const res = await this.client.getBlob(
-                filesMetadata[filePath].sha!,
-              );
+              const res = await this.client.getBlob({
+                sha: filesMetadata[filePath].sha!,
+              });
               return decodeBase64String(res.content);
             })(),
             await this.vault.adapter.read(normalizePath(filePath)),
@@ -760,8 +760,9 @@ export default class SyncManager {
           // we first need to create a Git blob by uploading the file, then
           // we must update the tree item to point the SHA to the blob we just created.
           const buffer = await this.vault.adapter.readBinary(filePath);
-          const hash = arrayBufferToBase64(buffer);
-          const { sha } = await this.client.createBlob(hash);
+          const { sha } = await this.client.createBlob({
+            content: arrayBufferToBase64(buffer),
+          });
           treeFiles[filePath].sha = sha;
           // Can't have both sha and content set, so we delete it
           delete treeFiles[filePath].content;
@@ -781,18 +782,18 @@ export default class SyncManager {
       ),
       base_tree: baseTreeSha,
     };
-    const newTreeSha = await this.client.createTree(newTree);
+    const newTreeSha = await this.client.createTree({ tree: newTree });
 
     const branchHeadSha = await this.client.getBranchHeadSha();
 
-    const commitSha = await this.client.createCommit(
+    const commitSha = await this.client.createCommit({
       // TODO: Make this configurable or find a nicer commit message
-      "Sync",
-      newTreeSha,
-      branchHeadSha,
-    );
+      message: "Sync",
+      treeSha: newTreeSha,
+      parent: branchHeadSha,
+    });
 
-    await this.client.updateBranchHead(commitSha);
+    await this.client.updateBranchHead({ sha: commitSha });
 
     // Update the local content of all files that had conflicts we resolved
     await Promise.all(
@@ -819,7 +820,7 @@ export default class SyncManager {
       // File already exists and has the same SHA, no need to download it again.
       return;
     }
-    const blob = await this.client.getBlob(file.sha);
+    const blob = await this.client.getBlob({ sha: file.sha });
     const normalizedPath = normalizePath(file.path);
     const fileFolder = normalizePath(
       normalizedPath.split("/").slice(0, -1).join("/"),
