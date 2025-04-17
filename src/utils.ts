@@ -56,7 +56,7 @@ export async function copyToClipboard(text: string) {
  * @returns True if the file has a text extension, false otherwise
  */
 export function hasTextExtension(filePath: string) {
-  for (const extension in TEXT_EXTENSIONS) {
+  for (const extension of TEXT_EXTENSIONS) {
     if (filePath.endsWith(extension)) {
       return true;
     }
