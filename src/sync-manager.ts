@@ -198,28 +198,34 @@ export default class SyncManager {
 
     await Promise.all(
       entries.map(async (entry: Entry) => {
+        // All repo ZIPs contain a root directory that contains all the content
+        // of that repo, we need to ignore that directory so we strip the first
+        // folder segment from the path
+        const pathParts = entry.filename.split("/");
+        const targetPath =
+          pathParts.length > 1 ? pathParts.slice(1).join("/") : entry.filename;
+
         if (
           this.settings.syncConfigDir &&
-          entry.filename.startsWith(this.vault.configDir) &&
-          entry.filename !== `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
+          targetPath.startsWith(this.vault.configDir) &&
+          targetPath !== `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
         ) {
-          // If the user doesn't want to sync the config directory ignore it completely,
-          // apart from the metadata file as that must always be synced so the plugin behaves
-          // correctly.
+          return;
+        }
+
+        if (entry.directory) {
+          await this.vault.adapter.mkdir(normalizePath(targetPath));
           return;
         }
 
         const writer = new Uint8ArrayWriter();
         await entry.getData!(writer);
         const data = await writer.getData();
-        const dir = entry.filename.split("/").splice(0, -1).join("/");
+        const dir = targetPath.split("/").splice(0, -1).join("/");
         if (dir !== "") {
           await this.vault.adapter.mkdir(normalizePath(dir));
         }
-        await this.vault.adapter.writeBinary(
-          normalizePath(entry.filename),
-          data,
-        );
+        await this.vault.adapter.writeBinary(normalizePath(targetPath), data);
       }),
     );
 
