@@ -223,6 +223,11 @@ export default class SyncManager {
 
         if (entry.directory) {
           await this.vault.adapter.mkdir(normalizePath(targetPath));
+
+        if (targetPath.split("/").last()?.startsWith(".")) {
+          // We must skip hidden files as that creates issues with syncing.
+          // This is fine as users can't edit hidden files in Obsidian anyway.
+          await this.logger.info("Skipping hidden file", targetPath);
           return;
         }
 
