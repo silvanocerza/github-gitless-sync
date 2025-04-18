@@ -206,6 +206,13 @@ export default class SyncManager {
         const targetPath =
           pathParts.length > 1 ? pathParts.slice(1).join("/") : entry.filename;
 
+        if (targetPath === "") {
+          // Must be the root folder, skip it.
+          // This is really important as that would lead us to try and
+          // create the folder "/" and crash Obsidian
+          return;
+        }
+
         if (
           this.settings.syncConfigDir &&
           targetPath.startsWith(this.vault.configDir) &&
