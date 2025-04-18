@@ -259,6 +259,14 @@ export default class SyncManager {
         await this.logger.info("Written file", {
           normalizedPath,
         });
+        this.metadataStore.data.files[normalizedPath] = {
+          path: normalizedPath,
+          sha: files[normalizedPath].sha,
+          dirty: false,
+          justDownloaded: true,
+          lastModified: Date.now(),
+        };
+        await this.metadataStore.save();
       }),
     );
 
