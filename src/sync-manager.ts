@@ -197,6 +197,10 @@ export default class SyncManager {
     const reader = new ZipReader(new BlobReader(zipBlob));
     const entries = await reader.getEntries();
 
+    await this.logger.info("Extracting files from ZIP", {
+      length: entries.length,
+    });
+
     await Promise.all(
       entries.map(async (entry: Entry) => {
         // All repo ZIPs contain a root directory that contains all the content
@@ -218,11 +222,18 @@ export default class SyncManager {
           targetPath.startsWith(this.vault.configDir) &&
           targetPath !== `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
         ) {
+          await this.logger.info("Skipped config", { targetPath });
           return;
         }
 
         if (entry.directory) {
-          await this.vault.adapter.mkdir(normalizePath(targetPath));
+          const normalizedPath = normalizePath(targetPath);
+          await this.vault.adapter.mkdir(normalizedPath);
+          await this.logger.info("Created directory", {
+            normalizedPath,
+          });
+          return;
+        }
 
         if (targetPath.split("/").last()?.startsWith(".")) {
           // We must skip hidden files as that creates issues with syncing.
@@ -236,11 +247,22 @@ export default class SyncManager {
         const data = await writer.getData();
         const dir = targetPath.split("/").splice(0, -1).join("/");
         if (dir !== "") {
-          await this.vault.adapter.mkdir(normalizePath(dir));
+          const normalizedDir = normalizePath(dir);
+          await this.vault.adapter.mkdir(normalizedDir);
+          await this.logger.info("Created directory", {
+            normalizedDir,
+          });
         }
-        await this.vault.adapter.writeBinary(normalizePath(targetPath), data);
+
+        const normalizedPath = normalizePath(targetPath);
+        await this.vault.adapter.writeBinary(normalizedPath, data);
+        await this.logger.info("Written file", {
+          normalizedPath,
+        });
       }),
     );
+
+    await this.logger.info("Extracted zip");
 
     const newTreeFiles = Object.keys(files)
       .map((filePath: string) => ({
@@ -782,6 +804,7 @@ export default class SyncManager {
             retry: true,
             maxRetries: 3,
           });
+          await this.logger.info("Created blob", filePath);
           treeFiles[filePath].sha = sha;
           // Can't have both sha and content set, so we delete it
           delete treeFiles[filePath].content;
