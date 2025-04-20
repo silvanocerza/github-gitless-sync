@@ -286,18 +286,33 @@ export default class SyncManager {
       );
     // Add files that are in the manifest but not in the tree.
     await Promise.all(
-      Object.keys(this.metadataStore.data.files).map(
-        async (filePath: string) => {
+      Object.keys(this.metadataStore.data.files)
+        .filter((filePath: string) => {
+          return !Object.keys(files).contains(filePath);
+        })
+        .map(async (filePath: string) => {
           const normalizedPath = normalizePath(filePath);
-          const content = await this.vault.adapter.read(normalizedPath);
+          // We need to check whether the file is a text file or not before
+          // reading it here because trying to read a binary file as text fails
+          // on iOS, and probably on other mobile devices too, so we read the file
+          // content only if we're sure it contains text only.
+          //
+          // It's fine not reading the binary file in here and just setting some bogus
+          // content because when committing the sync we're going to read the binary
+          // file and upload its blob if it needs to be synced. The important thing is
+          // that some content is set so we know the file changed locally and needs to be
+          // uploaded.
+          let content = "binaryfile";
+          if (hasTextExtension(normalizedPath)) {
+            content = await this.vault.adapter.read(normalizedPath);
+          }
           newTreeFiles[filePath] = {
             path: filePath,
             mode: "100644",
             type: "blob",
-            content: content,
+            content,
           };
-        },
-      ),
+        }),
     );
     await this.commitSync(newTreeFiles, treeSha);
   }
@@ -339,12 +354,25 @@ export default class SyncManager {
         })
         .map(async (filePath: string) => {
           const normalizedPath = normalizePath(filePath);
-          const content = await this.vault.adapter.read(normalizedPath);
+          // We need to check whether the file is a text file or not before
+          // reading it here because trying to read a binary file as text fails
+          // on iOS, and probably on other mobile devices too, so we read the file
+          // content only if we're sure it contains text only.
+          //
+          // It's fine not reading the binary file in here and just setting some bogus
+          // content because when committing the sync we're going to read the binary
+          // file and upload its blob if it needs to be synced. The important thing is
+          // that some content is set so we know the file changed locally and needs to be
+          // uploaded.
+          let content = "binaryfile";
+          if (hasTextExtension(normalizedPath)) {
+            content = await this.vault.adapter.read(normalizedPath);
+          }
           newTreeFiles[filePath] = {
             path: filePath,
             mode: "100644",
             type: "blob",
-            content: content,
+            content,
           };
         }),
     );
