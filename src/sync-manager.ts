@@ -17,7 +17,7 @@ import MetadataStore, {
 } from "./metadata-store";
 import EventsListener from "./events-listener";
 import { GitHubSyncSettings } from "./settings/settings";
-import Logger from "./logger";
+import Logger, { LOG_FILE_NAME } from "./logger";
 import { decodeBase64String, hasTextExtension } from "./utils";
 import GitHubSyncPlugin from "./main";
 import { BlobReader, Entry, Uint8ArrayWriter, ZipReader } from "@zip.js/zip.js";
@@ -233,6 +233,14 @@ export default class SyncManager {
           return;
         }
 
+        if (targetPath === `${this.vault.configDir}/${LOG_FILE_NAME}`) {
+          // We don't want to download the log file if the user synced it in the past.
+          // This is necessary because in the past we forgot to ignore the log file
+          // from syncing if the user enabled configs sync.
+          // To avoid downloading it we ignore it if still present in the remote repo.
+          return;
+        }
+
         if (targetPath.split("/").last()?.startsWith(".")) {
           // We must skip hidden files as that creates issues with syncing.
           // This is fine as users can't edit hidden files in Obsidian anyway.
@@ -415,6 +423,16 @@ export default class SyncManager {
     if (manifest === undefined) {
       await this.logger.error("Remote manifest is missing", { files, treeSha });
       throw new Error("Remote manifest is missing");
+    }
+
+    if (
+      Object.keys(files).contains(`${this.vault.configDir}/${LOG_FILE_NAME}`)
+    ) {
+      // We don't want to download the log file if the user synced it in the past.
+      // This is necessary because in the past we forgot to ignore the log file
+      // from syncing if the user enabled configs sync.
+      // To avoid downloading it we delete it if still around.
+      delete files[`${this.vault.configDir}/${LOG_FILE_NAME}`];
     }
 
     const blob = await this.client.getBlob({ sha: manifest.sha });

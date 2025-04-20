@@ -1,7 +1,7 @@
 import { Vault, TAbstractFile, TFolder } from "obsidian";
 import MetadataStore, { MANIFEST_FILE_NAME } from "./metadata-store";
 import { GitHubSyncSettings } from "./settings/settings";
-import Logger from "./logger";
+import Logger, { LOG_FILE_NAME } from "./logger";
 import GitHubSyncPlugin from "./main";
 
 /**
@@ -144,6 +144,9 @@ export default class EventsListener {
       filePath === `${this.vault.configDir}/workspace-mobile.json`
     ) {
       // Obsidian recommends not syncing the workspace files
+      return false;
+    } else if (filePath === `${this.vault.configDir}/${LOG_FILE_NAME}`) {
+      // Don't sync the log file, doesn't make sense
       return false;
     } else if (
       this.settings.syncConfigDir &&
