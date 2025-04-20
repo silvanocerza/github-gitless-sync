@@ -95,19 +95,14 @@ export default class SyncManager {
       return;
     }
 
-    const notice = new Notice("Syncing...");
     this.syncing = true;
     try {
       await this.firstSyncImpl();
-      // Shown only if sync doesn't fail
-      new Notice("Sync successful", 5000);
     } catch (err) {
-      // Show the error to the user, it's not automatically dismissed to make sure
-      // the user sees it.
-      new Notice(`Error syncing. ${err}`);
+      this.syncing = false;
+      throw err;
     }
     this.syncing = false;
-    notice.hide();
   }
 
   private async firstSyncImpl() {
