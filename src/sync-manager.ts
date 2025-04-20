@@ -332,8 +332,14 @@ export default class SyncManager {
         {},
       );
     await Promise.all(
-      Object.keys(this.metadataStore.data.files).map(
-        async (filePath: string) => {
+      Object.keys(this.metadataStore.data.files)
+        .filter((filePath: string) => {
+          // We should not try to sync deleted files, this can happen when
+          // the user renames or deletes files after enabling the plugin but
+          // before syncing for the first time
+          return !this.metadataStore.data.files[filePath].deleted;
+        })
+        .map(async (filePath: string) => {
           const normalizedPath = normalizePath(filePath);
           const content = await this.vault.adapter.read(normalizedPath);
           newTreeFiles[filePath] = {
@@ -342,8 +348,7 @@ export default class SyncManager {
             type: "blob",
             content: content,
           };
-        },
-      ),
+        }),
     );
     await this.commitSync(newTreeFiles, treeSha);
   }
