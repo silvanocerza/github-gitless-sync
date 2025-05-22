@@ -700,16 +700,19 @@ export default class SyncManager {
               type: "delete_local",
               filePath: filePath,
             });
+            return;
           } else if (
             localFile.lastModified > (remoteFile.deletedAt as number)
           ) {
             actions.push({ type: "upload", filePath: filePath });
+            return;
           }
         }
 
         if (!remoteFile.deleted && localFile.deleted) {
           if (remoteFile.lastModified > (localFile.deletedAt as number)) {
             actions.push({ type: "download", filePath: filePath });
+            return;
           } else if (
             (localFile.deletedAt as number) > remoteFile.lastModified
           ) {
@@ -717,6 +720,7 @@ export default class SyncManager {
               type: "delete_remote",
               filePath: filePath,
             });
+            return;
           }
         }
 
@@ -724,8 +728,10 @@ export default class SyncManager {
         // Conflicts are already filtered out so we can make this decision easily
         if (localSHA !== localFile.sha) {
           actions.push({ type: "upload", filePath: filePath });
+          return;
         } else {
           actions.push({ type: "download", filePath: filePath });
+          return;
         }
       }),
     );
@@ -784,9 +790,13 @@ export default class SyncManager {
    * This is the same identical algoritm used by git to calculate
    * a blob's SHA.
    * @param filePath normalized path to file
-   * @returns String containing the file SHA1
+   * @returns String containing the file SHA1 or null in case the file doesn't exist
    */
-  async calculateSHA(filePath: string): Promise<string> {
+  async calculateSHA(filePath: string): Promise<string | null> {
+    if (!(await this.vault.adapter.exists(filePath))) {
+      // The file doesn't exist, can't calculate any SHA
+      return null;
+    }
     const contentBuffer = await this.vault.adapter.readBinary(filePath);
     const contentBytes = new Uint8Array(contentBuffer);
     const header = new TextEncoder().encode(`blob ${contentBytes.length}\0`);
