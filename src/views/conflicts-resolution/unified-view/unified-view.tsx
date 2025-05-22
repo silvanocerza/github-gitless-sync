@@ -42,6 +42,8 @@ const UnifiedView = ({
           paddingTop: "var(--size-4-4)",
           paddingBottom: "var(--size-4-4)",
           borderBottom: "1px solid var(--background-modifier-border)",
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <div
@@ -67,7 +69,14 @@ const UnifiedView = ({
 
   return (
     <React.StrictMode>
-      <div>
+      <div
+        style={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "auto",
+        }}
+      >
         {files.length === 0 ? (
           <div
             style={{

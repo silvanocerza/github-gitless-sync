@@ -46,9 +46,9 @@ const SplitView = ({
     <React.StrictMode>
       <div
         style={{
-          height: "100%",
           display: "flex",
           flexDirection: "column",
+          height: "100%",
           justifyContent: "center",
         }}
       >
@@ -88,21 +88,28 @@ const SplitView = ({
               currentFile={currentFile?.filePath || ""}
               setCurrentFileIndex={setCurrentFileIndex}
             />
-            <DiffView
-              remoteText={currentFile?.remoteContent || ""}
-              localText={currentFile?.localContent || ""}
-              onRemoteTextChange={(content: string) => {
-                const tempFiles = [...files];
-                tempFiles[currentFileIndex].remoteContent = content;
-                setFiles(tempFiles);
+            <div
+              style={{
+                overflow: "auto",
+                flex: 1,
               }}
-              onLocalTextChange={(content: string) => {
-                const tempFiles = [...files];
-                tempFiles[currentFileIndex].localContent = content;
-                setFiles(tempFiles);
-              }}
-              onConflictResolved={onConflictResolved}
-            />
+            >
+              <DiffView
+                remoteText={currentFile?.remoteContent || ""}
+                localText={currentFile?.localContent || ""}
+                onRemoteTextChange={(content: string) => {
+                  const tempFiles = [...files];
+                  tempFiles[currentFileIndex].remoteContent = content;
+                  setFiles(tempFiles);
+                }}
+                onLocalTextChange={(content: string) => {
+                  const tempFiles = [...files];
+                  tempFiles[currentFileIndex].localContent = content;
+                  setFiles(tempFiles);
+                }}
+                onConflictResolved={onConflictResolved}
+              />
+            </div>
           </>
         )}
       </div>

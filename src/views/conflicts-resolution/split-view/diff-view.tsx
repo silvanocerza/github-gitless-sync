@@ -36,13 +36,11 @@ const DiffView: React.FC<DiffViewProps> = ({
   return (
     <div
       style={{
-        width: "100%",
         height: "100%",
         display: "flex",
-        overflow: "hidden",
       }}
     >
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      <div style={{ flex: 1 }}>
         <EditorPane
           content={remoteText}
           highlightPluginSpec={{
@@ -142,7 +140,7 @@ const DiffView: React.FC<DiffViewProps> = ({
           }}
         />
       </div>
-      <div style={{ flex: 1, overflow: "hidden" }}>
+      <div style={{ flex: 1 }}>
         <EditorPane
           content={localText}
           highlightPluginSpec={{

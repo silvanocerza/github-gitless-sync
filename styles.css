@@ -4,4 +4,6 @@
 
 .padless-conflicts-view-container {
     padding: 0;
+    height: 100%;
+    width: 100%;
 }

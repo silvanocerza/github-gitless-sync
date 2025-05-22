@@ -183,7 +183,15 @@ const DiffView: React.FC<DiffViewProps> = ({
   }, [initialRemoteText, initialLocalText]);
 
   return (
-    <div style={{ width: "100%", height: "100%", overflow: "hidden" }}>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+      }}
+    >
       <CodeMirror
         value={doc}
         height="100%"
