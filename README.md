@@ -126,6 +126,16 @@ To work correctly this plugin uses a custom metadata file that is updated every 
 
 Other plugins don't know about that file, so if you sync with others too you risk losing data.
 
+## Contributing
+
+Contributions are obviously accepted.
+
+Bug fixes are always welcome, new feature must be discussed first. Open a [discussion](https://github.com/silvanocerza/github-gitless-sync/discussions) and let's talk in that case.
+
+Keep PRs as small as possible, I won't review PRs with hundreds of lines if it's mostly code.
+
+Low quality or vibe coded PRs are not welcome. Put some effort in it please.
+
 ## License
 
 The project is licensed under the [AGPLv3](https://www.gnu.org/licenses/agpl-3.0.en.html) license.
