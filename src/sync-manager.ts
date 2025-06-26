@@ -199,82 +199,82 @@ export default class SyncManager {
       length: entries.length,
     });
 
-    await Promise.all(
-      entries.map(async (entry: Entry) => {
-        // All repo ZIPs contain a root directory that contains all the content
-        // of that repo, we need to ignore that directory so we strip the first
-        // folder segment from the path
-        const pathParts = entry.filename.split("/");
-        const targetPath =
-          pathParts.length > 1 ? pathParts.slice(1).join("/") : entry.filename;
+    // Process entries sequentially to avoid loading many files in memory at once
+    // which can crash Obsidian when initializing a large Obsidian repository.
+    for (const entry of entries) {
+      // All repo ZIPs contain a root directory that contains all the content
+      // of that repo, we need to ignore that directory so we strip the first
+      // folder segment from the path
+      const pathParts = entry.filename.split("/");
+      const targetPath =
+        pathParts.length > 1 ? pathParts.slice(1).join("/") : entry.filename;
 
-        if (targetPath === "") {
-          // Must be the root folder, skip it.
-          // This is really important as that would lead us to try and
-          // create the folder "/" and crash Obsidian
-          return;
-        }
+      if (targetPath === "") {
+        // Must be the root folder, skip it.
+        // This is really important as that would lead us to try and
+        // create the folder "/" and crash Obsidian
+        continue;
+      }
 
-        if (
-          this.settings.syncConfigDir &&
-          targetPath.startsWith(this.vault.configDir) &&
-          targetPath !== `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
-        ) {
-          await this.logger.info("Skipped config", { targetPath });
-          return;
-        }
+      if (
+        this.settings.syncConfigDir &&
+        targetPath.startsWith(this.vault.configDir) &&
+        targetPath !== `${this.vault.configDir}/${MANIFEST_FILE_NAME}`
+      ) {
+        await this.logger.info("Skipped config", { targetPath });
+        continue;
+      }
 
-        if (entry.directory) {
-          const normalizedPath = normalizePath(targetPath);
-          await this.vault.adapter.mkdir(normalizedPath);
-          await this.logger.info("Created directory", {
-            normalizedPath,
-          });
-          return;
-        }
-
-        if (targetPath === `${this.vault.configDir}/${LOG_FILE_NAME}`) {
-          // We don't want to download the log file if the user synced it in the past.
-          // This is necessary because in the past we forgot to ignore the log file
-          // from syncing if the user enabled configs sync.
-          // To avoid downloading it we ignore it if still present in the remote repo.
-          return;
-        }
-
-        if (targetPath.split("/").last()?.startsWith(".")) {
-          // We must skip hidden files as that creates issues with syncing.
-          // This is fine as users can't edit hidden files in Obsidian anyway.
-          await this.logger.info("Skipping hidden file", targetPath);
-          return;
-        }
-
-        const writer = new Uint8ArrayWriter();
-        await entry.getData!(writer);
-        const data = await writer.getData();
-        const dir = targetPath.split("/").splice(0, -1).join("/");
-        if (dir !== "") {
-          const normalizedDir = normalizePath(dir);
-          await this.vault.adapter.mkdir(normalizedDir);
-          await this.logger.info("Created directory", {
-            normalizedDir,
-          });
-        }
-
+      if (entry.directory) {
         const normalizedPath = normalizePath(targetPath);
-        await this.vault.adapter.writeBinary(normalizedPath, data);
-        await this.logger.info("Written file", {
+        await this.vault.adapter.mkdir(normalizedPath);
+        await this.logger.info("Created directory", {
           normalizedPath,
         });
-        this.metadataStore.data.files[normalizedPath] = {
-          path: normalizedPath,
-          sha: files[normalizedPath].sha,
-          dirty: false,
-          justDownloaded: true,
-          lastModified: Date.now(),
-        };
-        await this.metadataStore.save();
-      }),
-    );
+        continue;
+      }
+
+      if (targetPath === `${this.vault.configDir}/${LOG_FILE_NAME}`) {
+        // We don't want to download the log file if the user synced it in the past.
+        // This is necessary because in the past we forgot to ignore the log file
+        // from syncing if the user enabled configs sync.
+        // To avoid downloading it we ignore it if still present in the remote repo.
+        continue;
+      }
+
+      if (targetPath.split("/").last()?.startsWith(".")) {
+        // We must skip hidden files as that creates issues with syncing.
+        // This is fine as users can't edit hidden files in Obsidian anyway.
+        await this.logger.info("Skipping hidden file", targetPath);
+        continue;
+      }
+
+      const writer = new Uint8ArrayWriter();
+      await entry.getData!(writer);
+      const data = await writer.getData();
+      const dir = targetPath.split("/").splice(0, -1).join("/");
+      if (dir !== "") {
+        const normalizedDir = normalizePath(dir);
+        await this.vault.adapter.mkdir(normalizedDir);
+        await this.logger.info("Created directory", {
+          normalizedDir,
+        });
+      }
+
+      const normalizedPath = normalizePath(targetPath);
+      await this.vault.adapter.writeBinary(normalizedPath, data);
+      await this.logger.info("Written file", {
+        normalizedPath,
+      });
+      this.metadataStore.data.files[normalizedPath] = {
+        path: normalizedPath,
+        sha: files[normalizedPath].sha,
+        dirty: false,
+        justDownloaded: true,
+        lastModified: Date.now(),
+      };
+      await this.metadataStore.save();
+    }
 
     await this.logger.info("Extracted zip");
 
