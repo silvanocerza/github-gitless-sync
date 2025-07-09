@@ -543,7 +543,9 @@ export default class SyncManager {
             break;
           }
           case "delete_remote": {
-            newTreeFiles[action.filePath].sha = null;
+            if (newTreeFiles[action.filePath]) {
+              newTreeFiles[action.filePath].sha = null;
+            }
             break;
           }
           case "download":
