@@ -724,12 +724,12 @@ export default class SyncManager {
           }
         }
 
-        // For non-deletion cases, if SHAs differ, we just need to check if local changed.
+        // For non-deletion cases, if SHAs differ, we need to check if local changed and what file was modified last
         // Conflicts are already filtered out so we can make this decision easily
-        if (localSHA !== localFile.sha) {
+        if (localSHA !== localFile.sha && remoteFile.lastModified < localFile.lastModified) {
           actions.push({ type: "upload", filePath: filePath });
           return;
-        } else {
+        } else if(localSHA == localFile.sha && remoteFile.lastModified > localFile.lastModified) {
           actions.push({ type: "download", filePath: filePath });
           return;
         }
