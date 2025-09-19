@@ -729,7 +729,7 @@ export default class SyncManager {
         if (localSHA !== localFile.sha && remoteFile.lastModified < localFile.lastModified) {
           actions.push({ type: "upload", filePath: filePath });
           return;
-        } else if(localSHA == localFile.sha && remoteFile.lastModified > localFile.lastModified) {
+        } else if(remoteFile.lastModified > localFile.lastModified) {
           actions.push({ type: "download", filePath: filePath });
           return;
         }
