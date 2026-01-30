@@ -440,6 +440,40 @@ export default class SyncManager {
       decodeBase64String(blob.content),
     );
 
+    // Detect files modified directly on GitHub (via web UI or other means).
+    // The manifest only updates when syncing through this plugin, so we compare
+    // actual tree SHAs with manifest SHAs to catch external modifications.
+    await this.logger.info("Checking for remote changes outside manifest");
+    Object.keys(files).forEach((filePath: string) => {
+      if (filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}`) {
+        return;
+      }
+      
+      const actualRemoteSHA = files[filePath].sha;
+      const manifestEntry = remoteMetadata.files[filePath];
+      
+      if (manifestEntry) {
+        if (manifestEntry.sha !== actualRemoteSHA) {
+          this.logger.info("Detected external change", {
+            filePath,
+            manifestSHA: manifestEntry.sha,
+            actualSHA: actualRemoteSHA,
+          });
+          manifestEntry.sha = actualRemoteSHA;
+          manifestEntry.lastModified = Date.now();
+        }
+      } else {
+        this.logger.info("Detected new file added externally", { filePath });
+        remoteMetadata.files[filePath] = {
+          path: filePath,
+          sha: actualRemoteSHA,
+          dirty: false,
+          justDownloaded: false,
+          lastModified: Date.now(),
+        };
+      }
+    });
+
     const conflicts = await this.findConflicts(remoteMetadata.files);
 
     // We treat every resolved conflict as an upload SyncAction, mainly cause
