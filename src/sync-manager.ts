@@ -320,7 +320,12 @@ export default class SyncManager {
           return;
         }
 
-        if (targetPath.split("/").last()?.startsWith(".")) {
+        // O .gitignore também é um ficheiro escondido, mas tem de ser
+        // descarregado para manter as mesmas regras em todos os cofres.
+        if (
+          targetPath !== GITIGNORE_FILE_NAME &&
+          targetPath.split("/").last()?.startsWith(".")
+        ) {
           // We must skip hidden files as that creates issues with syncing.
           // This is fine as users can't edit hidden files in Obsidian anyway.
           await this.logger.info("Skipping hidden file", targetPath);
