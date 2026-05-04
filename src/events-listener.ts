@@ -3,6 +3,7 @@ import MetadataStore, { MANIFEST_FILE_NAME } from "./metadata-store";
 import { GitHubSyncSettings } from "./settings/settings";
 import Logger, { LOG_FILE_NAME } from "./logger";
 import GitHubSyncPlugin from "./main";
+import { isGitignored, loadGitignoreMatcher } from "./gitignore";
 
 /**
  * Tracks changes to local sync directory and updates files metadata.
@@ -27,7 +28,7 @@ export default class EventsListener {
 
   private async onCreate(file: TAbstractFile) {
     await this.logger.info("Received create event", file.path);
-    if (!this.isSyncable(file.path)) {
+    if (!(await this.isSyncable(file.path))) {
       // The file has not been created in directory that we're syncing with GitHub
       await this.logger.info("Skipped created file", file.path);
       return;
@@ -66,7 +67,7 @@ export default class EventsListener {
       // Skip folders
       return;
     }
-    if (!this.isSyncable(filePath)) {
+    if (!(await this.isSyncable(filePath))) {
       // The file was not in directory that we're syncing with GitHub
       return;
     }
@@ -79,7 +80,7 @@ export default class EventsListener {
 
   private async onModify(file: TAbstractFile) {
     await this.logger.info("Received modify event", file.path);
-    if (!this.isSyncable(file.path)) {
+    if (!(await this.isSyncable(file.path))) {
       // The file has not been create in directory that we're syncing with GitHub
       await this.logger.info("Skipped modified file", file.path);
       return;
@@ -112,30 +113,33 @@ export default class EventsListener {
       // Skip folders
       return;
     }
-    if (!this.isSyncable(file.path) && !this.isSyncable(oldPath)) {
+    const newFileIsSyncable = await this.isSyncable(file.path);
+    const oldFileIsSyncable = await this.isSyncable(oldPath);
+
+    if (!newFileIsSyncable && !oldFileIsSyncable) {
       // Both are not in directory that we're syncing with GitHub
       return;
     }
 
-    if (this.isSyncable(file.path) && this.isSyncable(oldPath)) {
+    if (newFileIsSyncable && oldFileIsSyncable) {
       // Both files are in the synced directory
       // First create the new one
       await this.onCreate(file);
       // Then delete the old one
       await this.onDelete(oldPath);
       return;
-    } else if (this.isSyncable(file.path)) {
+    } else if (newFileIsSyncable) {
       // Only the new file is in the local directory
       await this.onCreate(file);
       return;
-    } else if (this.isSyncable(oldPath)) {
+    } else if (oldFileIsSyncable) {
       // Only the old file was in the local directory
       await this.onDelete(oldPath);
       return;
     }
   }
 
-  private isSyncable(filePath: string) {
+  private async isSyncable(filePath: string) {
     if (filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}`) {
       // Manifest file must always be synced
       return true;
@@ -153,10 +157,20 @@ export default class EventsListener {
       filePath.startsWith(this.vault.configDir)
     ) {
       // Sync configs only if the user explicitly wants to
-      return true;
+      return !(await this.isIgnored(filePath));
     } else {
       // All other files can be synced
-      return true;
+      return !(await this.isIgnored(filePath));
     }
+  }
+
+  private async isIgnored(filePath: string): Promise<boolean> {
+    if (!this.settings.useGitignore) {
+      return false;
+    }
+
+    // O ficheiro pode mudar durante a sessão, por isso os eventos leem sempre
+    // a versão atual antes de decidir se atualizam o manifesto local.
+    return isGitignored(await loadGitignoreMatcher(this.vault), filePath);
   }
 }

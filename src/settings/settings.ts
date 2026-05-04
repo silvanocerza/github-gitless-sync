@@ -4,6 +4,7 @@ export interface GitHubSyncSettings {
   githubOwner: string;
   githubRepo: string;
   githubBranch: string;
+  useGitignore: boolean;
   syncStrategy: "manual" | "interval";
   syncInterval: number;
   syncOnStartup: boolean;
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS: GitHubSyncSettings = {
   githubOwner: "",
   githubRepo: "",
   githubBranch: "main",
+  useGitignore: false,
   syncStrategy: "manual",
   syncInterval: 1,
   syncOnStartup: false,

@@ -26,6 +26,9 @@ importers:
       codemirror:
         specifier: ^6.0.1
         version: 6.0.1
+      ignore:
+        specifier: 5.3.2
+        version: 5.3.2
       react:
         specifier: ^19.0.0
         version: 19.0.0

@@ -21,6 +21,13 @@ import Logger, { LOG_FILE_NAME } from "./logger";
 import { decodeBase64String, hasTextExtension } from "./utils";
 import GitHubSyncPlugin from "./main";
 import { BlobReader, Entry, Uint8ArrayWriter, ZipReader } from "@zip.js/zip.js";
+import { Ignore } from "ignore";
+import {
+  createGitignoreMatcher,
+  GITIGNORE_FILE_NAME,
+  isGitignored,
+  loadGitignoreMatcher,
+} from "./gitignore";
 
 interface SyncAction {
   type: "upload" | "download" | "delete_local" | "delete_remote";
@@ -67,6 +74,76 @@ export default class SyncManager {
       this.settings,
       this.logger,
     );
+  }
+
+  private async getGitignoreMatcher(): Promise<Ignore | null> {
+    if (!this.settings.useGitignore) {
+      return null;
+    }
+
+    return await loadGitignoreMatcher(this.vault);
+  }
+
+  private getZipEntryTargetPath(entry: Entry): string {
+    // Os ZIPs do GitHub incluem uma pasta raiz artificial; removemo-la para
+    // testar os padrões como caminhos relativos ao cofre.
+    const pathParts = entry.filename.split("/");
+    return pathParts.length > 1 ? pathParts.slice(1).join("/") : entry.filename;
+  }
+
+  private async getGitignoreMatcherFromZipEntries(
+    entries: Entry[],
+  ): Promise<Ignore | null> {
+    if (!this.settings.useGitignore) {
+      return null;
+    }
+
+    const gitignoreEntry = entries.find(
+      (entry) => this.getZipEntryTargetPath(entry) === GITIGNORE_FILE_NAME,
+    );
+    if (!gitignoreEntry || gitignoreEntry.directory) {
+      return createGitignoreMatcher();
+    }
+
+    const writer = new Uint8ArrayWriter();
+    await gitignoreEntry.getData!(writer);
+    return createGitignoreMatcher(new TextDecoder().decode(await writer.getData()));
+  }
+
+  private filterIgnoredFiles<T>(files: { [key: string]: T }, matcher: Ignore | null) {
+    return Object.keys(files).reduce(
+      (filteredFiles: { [key: string]: T }, filePath: string) => {
+        if (
+          filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}` ||
+          !isGitignored(matcher, filePath)
+        ) {
+          filteredFiles[filePath] = files[filePath];
+        }
+        return filteredFiles;
+      },
+      {},
+    );
+  }
+
+  private async removeIgnoredFilesFromMetadata(matcher: Ignore | null) {
+    if (!matcher) {
+      return;
+    }
+
+    let hasChanges = false;
+    Object.keys(this.metadataStore.data.files).forEach((filePath: string) => {
+      if (
+        filePath !== `${this.vault.configDir}/${MANIFEST_FILE_NAME}` &&
+        isGitignored(matcher, filePath)
+      ) {
+        delete this.metadataStore.data.files[filePath];
+        hasChanges = true;
+      }
+    });
+
+    if (hasChanges) {
+      await this.metadataStore.save();
+    }
   }
 
   /**
@@ -194,6 +271,8 @@ export default class SyncManager {
     const zipBlob = new Blob([zipBuffer]);
     const reader = new ZipReader(new BlobReader(zipBlob));
     const entries = await reader.getEntries();
+    const gitignoreMatcher =
+      await this.getGitignoreMatcherFromZipEntries(entries);
 
     await this.logger.info("Extracting files from ZIP", {
       length: entries.length,
@@ -201,17 +280,17 @@ export default class SyncManager {
 
     await Promise.all(
       entries.map(async (entry: Entry) => {
-        // All repo ZIPs contain a root directory that contains all the content
-        // of that repo, we need to ignore that directory so we strip the first
-        // folder segment from the path
-        const pathParts = entry.filename.split("/");
-        const targetPath =
-          pathParts.length > 1 ? pathParts.slice(1).join("/") : entry.filename;
+        const targetPath = this.getZipEntryTargetPath(entry);
 
         if (targetPath === "") {
           // Must be the root folder, skip it.
           // This is really important as that would lead us to try and
           // create the folder "/" and crash Obsidian
+          return;
+        }
+
+        if (isGitignored(gitignoreMatcher, targetPath, entry.directory)) {
+          await this.logger.info("Skipping .gitignore match", targetPath);
           return;
         }
 
@@ -296,7 +375,10 @@ export default class SyncManager {
     await Promise.all(
       Object.keys(this.metadataStore.data.files)
         .filter((filePath: string) => {
-          return !Object.keys(files).contains(filePath);
+          return (
+            !Object.keys(files).contains(filePath) &&
+            !isGitignored(gitignoreMatcher, filePath)
+          );
         })
         .map(async (filePath: string) => {
           const normalizedPath = normalizePath(filePath);
@@ -338,6 +420,9 @@ export default class SyncManager {
     treeSha: string,
   ) {
     await this.logger.info("Starting first sync from local files");
+    const gitignoreMatcher = await this.getGitignoreMatcher();
+    await this.removeIgnoredFilesFromMetadata(gitignoreMatcher);
+
     const newTreeFiles = Object.keys(files)
       .map((filePath: string) => ({
         path: files[filePath].path,
@@ -358,7 +443,10 @@ export default class SyncManager {
           // We should not try to sync deleted files, this can happen when
           // the user renames or deletes files after enabling the plugin but
           // before syncing for the first time
-          return !this.metadataStore.data.files[filePath].deleted;
+          return (
+            !this.metadataStore.data.files[filePath].deleted &&
+            !isGitignored(gitignoreMatcher, filePath)
+          );
         })
         .map(async (filePath: string) => {
           const normalizedPath = normalizePath(filePath);
@@ -438,6 +526,12 @@ export default class SyncManager {
     const blob = await this.client.getBlob({ sha: manifest.sha });
     const remoteMetadata: Metadata = JSON.parse(
       decodeBase64String(blob.content),
+    );
+    const gitignoreMatcher = await this.getGitignoreMatcher();
+    await this.removeIgnoredFilesFromMetadata(gitignoreMatcher);
+    remoteMetadata.files = this.filterIgnoredFiles(
+      remoteMetadata.files,
+      gitignoreMatcher,
     );
 
     const conflicts = await this.findConflicts(remoteMetadata.files);
@@ -965,6 +1059,7 @@ export default class SyncManager {
   async loadMetadata() {
     await this.logger.info("Loading metadata");
     await this.metadataStore.load();
+    const gitignoreMatcher = await this.getGitignoreMatcher();
     if (Object.keys(this.metadataStore.data.files).length === 0) {
       await this.logger.info("Metadata was empty, loading all files");
       let files = [];
@@ -979,6 +1074,10 @@ export default class SyncManager {
           // Skip the config dir if the user doesn't want to sync it
           continue;
         }
+        if (isGitignored(gitignoreMatcher, folder, true)) {
+          await this.logger.info("Skipping .gitignore folder match", folder);
+          continue;
+        }
         const res = await this.vault.adapter.list(folder);
         files.push(...res.files);
         folders.push(...res.folders);
@@ -986,6 +1085,9 @@ export default class SyncManager {
       files.forEach((filePath: string) => {
         if (filePath === `${this.vault.configDir}/workspace.json`) {
           // Obsidian recommends not syncing the workspace file
+          return;
+        }
+        if (isGitignored(gitignoreMatcher, filePath)) {
           return;
         }
 
@@ -1010,6 +1112,8 @@ export default class SyncManager {
         lastModified: Date.now(),
       };
       this.metadataStore.save();
+    } else {
+      await this.removeIgnoredFilesFromMetadata(gitignoreMatcher);
     }
     await this.logger.info("Loaded metadata");
   }
@@ -1021,6 +1125,7 @@ export default class SyncManager {
    */
   async addConfigDirToMetadata() {
     await this.logger.info("Adding config dir to metadata");
+    const gitignoreMatcher = await this.getGitignoreMatcher();
     // Get all the files in the config dir
     let files = [];
     let folders = [this.vault.configDir];
@@ -1029,12 +1134,20 @@ export default class SyncManager {
       if (folder === undefined) {
         continue;
       }
+      if (isGitignored(gitignoreMatcher, folder, true)) {
+        await this.logger.info("Skipping .gitignore folder match", folder);
+        continue;
+      }
       const res = await this.vault.adapter.list(folder);
       files.push(...res.files);
       folders.push(...res.folders);
     }
     // Add them to the metadata store
     files.forEach((filePath: string) => {
+      if (isGitignored(gitignoreMatcher, filePath)) {
+        return;
+      }
+
       this.metadataStore.data.files[filePath] = {
         path: filePath,
         sha: null,
