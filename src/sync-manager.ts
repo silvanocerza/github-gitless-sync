@@ -452,8 +452,11 @@ export default class SyncManager {
     // commit the sync.
     let conflictResolutions: ConflictResolution[] = [];
 
-    const logConflictResolutions = conflicts
-      .filter((conflict) => this.isLogFile(conflict.filePath))
+    const autoResolvableLogConflicts = this.settings.autoResolveLogConflicts
+      ? conflicts.filter((conflict) => this.isLogFile(conflict.filePath))
+      : [];
+
+    const logConflictResolutions = autoResolvableLogConflicts
       .map((conflict) => ({
         filePath: conflict.filePath,
         content: conflict.localContent,
@@ -474,7 +477,9 @@ export default class SyncManager {
     }
 
     const remainingConflicts = conflicts.filter(
-      (conflict) => !this.isLogFile(conflict.filePath),
+      (conflict) =>
+        !this.settings.autoResolveLogConflicts ||
+        !this.isLogFile(conflict.filePath),
     );
 
     if (remainingConflicts.length > 0) {
