@@ -452,37 +452,60 @@ export default class SyncManager {
     // commit the sync.
     let conflictResolutions: ConflictResolution[] = [];
 
-    if (conflicts.length > 0) {
-      await this.logger.warn("Found conflicts", conflicts);
+    const logConflictResolutions = conflicts
+      .filter((conflict) => this.isLogFile(conflict.filePath))
+      .map((conflict) => ({
+        filePath: conflict.filePath,
+        content: conflict.localContent,
+      }));
+    if (logConflictResolutions.length > 0) {
+      // Os logs são específicos de cada cofre e podem mudar em cada execução,
+      // por isso estes conflitos são resolvidos mantendo sempre o conteúdo local.
+      await this.logger.info(
+        "Automatically resolved log conflicts",
+        logConflictResolutions.map((resolution) => resolution.filePath),
+      );
+      conflictResolutions.push(...logConflictResolutions);
+      conflictActions.push(
+        ...logConflictResolutions.map((resolution: ConflictResolution) => {
+          return { type: "upload" as const, filePath: resolution.filePath };
+        }),
+      );
+    }
+
+    const remainingConflicts = conflicts.filter(
+      (conflict) => !this.isLogFile(conflict.filePath),
+    );
+
+    if (remainingConflicts.length > 0) {
+      await this.logger.warn("Found conflicts", remainingConflicts);
       if (this.settings.conflictHandling === "ask") {
         // Here we block the sync process until the user has resolved all the conflicts
-        conflictResolutions = await this.onConflicts(conflicts);
-        conflictActions = conflictResolutions.map(
-          (resolution: ConflictResolution) => {
-            return { type: "upload", filePath: resolution.filePath };
-          },
+        const manualConflictResolutions =
+          await this.onConflicts(remainingConflicts);
+        conflictResolutions.push(...manualConflictResolutions);
+        conflictActions.push(
+          ...manualConflictResolutions.map(
+            (resolution: ConflictResolution) => {
+              return { type: "upload" as const, filePath: resolution.filePath };
+            },
+          ),
         );
       } else if (this.settings.conflictHandling === "overwriteLocal") {
         // The user explicitly wants to always overwrite the local file
         // in case of conflicts so we just download the remote file to solve it
-
-        // It's not necessary to set conflict resolutions as the content the
-        // user expect must be the content of the remote file with no changes.
-        conflictActions = conflictResolutions.map(
-          (resolution: ConflictResolution) => {
-            return { type: "download", filePath: resolution.filePath };
-          },
+        conflictActions.push(
+          ...remainingConflicts.map((conflict: ConflictFile) => {
+            return { type: "download" as const, filePath: conflict.filePath };
+          }),
         );
       } else if (this.settings.conflictHandling === "overwriteRemote") {
         // The user explicitly wants to always overwrite the remote file
         // in case of conflicts so we just upload the remote file to solve it.
-
-        // It's not necessary to set conflict resolutions as the content the
-        // user expect must be the content of the local file with no changes.
-        conflictActions = conflictResolutions.map(
-          (resolution: ConflictResolution) => {
-            return { type: "upload", filePath: resolution.filePath };
-          },
+        conflictActions.push(
+          ...remainingConflicts.map((conflict: ConflictFile) => {
+            return { type: "upload" as const, filePath: conflict.filePath };
+          }),
         );
       }
     }
@@ -572,6 +595,10 @@ export default class SyncManager {
     ]);
 
     await this.commitSync(newTreeFiles, treeSha, conflictResolutions);
+  }
+
+  private isLogFile(filePath: string): boolean {
+    return filePath === `${this.vault.configDir}/${LOG_FILE_NAME}`;
   }
 
   /**
