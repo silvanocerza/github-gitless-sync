@@ -91,6 +91,18 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           }),
       );
 
+    new Setting(containerEl)
+      .setName("Use .gitignore")
+      .setDesc("Ignore files as defined in .gitignore")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.useGitignore)
+          .onChange(async (value) => {
+            this.plugin.settings.useGitignore = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
     new Setting(containerEl).setName("Sync").setHeading();
 
     const syncStrategies = {
