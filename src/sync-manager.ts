@@ -460,10 +460,10 @@ export default class SyncManager {
       .map((conflict) => ({
         filePath: conflict.filePath,
         content: conflict.localContent,
-      }));
+    }));
     if (logConflictResolutions.length > 0) {
-      // Os logs são específicos de cada cofre e podem mudar em cada execução,
-      // por isso estes conflitos são resolvidos mantendo sempre o conteúdo local.
+      // Logs are specific to each vault and can change on every run,
+      // so these conflicts are always resolved by keeping local content.
       await this.logger.info(
         "Automatically resolved log conflicts",
         logConflictResolutions.map((resolution) => resolution.filePath),
