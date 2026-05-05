@@ -8,7 +8,7 @@ export function createGitignoreMatcher(patterns = ""): Ignore {
 }
 
 /**
- * Carrega as regras da raiz do cofre e devolve um matcher equivalente ao gitignore.
+ * Loads root vault rules and returns a matcher equivalent to gitignore.
  */
 export async function loadGitignoreMatcher(vault: Vault): Promise<Ignore> {
   const matcher = createGitignoreMatcher();
@@ -22,7 +22,7 @@ export async function loadGitignoreMatcher(vault: Vault): Promise<Ignore> {
 }
 
 /**
- * Normaliza caminhos do Obsidian para o formato relativo esperado pelo parser.
+ * Normalizes Obsidian paths to the relative format expected by the parser.
  */
 export function isGitignored(
   matcher: Ignore | null,

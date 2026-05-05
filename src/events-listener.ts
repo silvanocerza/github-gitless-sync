@@ -169,8 +169,8 @@ export default class EventsListener {
       return false;
     }
 
-    // O ficheiro pode mudar durante a sessão, por isso os eventos leem sempre
-    // a versão atual antes de decidir se atualizam o manifesto local.
+    // The file can change during the session, so events always read
+    // the current version before deciding whether to update local metadata.
     return isGitignored(await loadGitignoreMatcher(this.vault), filePath);
   }
 }

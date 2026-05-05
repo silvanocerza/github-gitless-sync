@@ -85,8 +85,8 @@ export default class SyncManager {
   }
 
   private getZipEntryTargetPath(entry: Entry): string {
-    // Os ZIPs do GitHub incluem uma pasta raiz artificial; removemo-la para
-    // testar os padrões como caminhos relativos ao cofre.
+    // GitHub ZIPs include an artificial root folder; we remove it so patterns
+    // are tested as vault-relative paths.
     const pathParts = entry.filename.split("/");
     return pathParts.length > 1 ? pathParts.slice(1).join("/") : entry.filename;
   }
@@ -320,8 +320,8 @@ export default class SyncManager {
           return;
         }
 
-        // O .gitignore também é um ficheiro escondido, mas tem de ser
-        // descarregado para manter as mesmas regras em todos os cofres.
+        // .gitignore is also a hidden file, but it must be downloaded to keep
+        // the same rules across vaults.
         if (
           targetPath !== GITIGNORE_FILE_NAME &&
           targetPath.split("/").last()?.startsWith(".")
