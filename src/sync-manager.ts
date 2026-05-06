@@ -439,8 +439,11 @@ export default class SyncManager {
     const remoteMetadata: Metadata = JSON.parse(
       decodeBase64String(blob.content),
     );
+    await this.removeVolatileArtifactsFromLocalMetadata();
+    remoteMetadata.files = this.filterRemoteMetadataFiles(remoteMetadata.files);
+    await this.reconcileRemoteMetadataWithTree(remoteMetadata.files, files);
 
-    const conflicts = await this.findConflicts(remoteMetadata.files);
+    const conflicts = await this.findConflicts(remoteMetadata.files, files);
 
     // We treat every resolved conflict as an upload SyncAction, mainly cause
     // the user has complete freedom on the edits they can apply to the conflicting files.
@@ -574,6 +577,158 @@ export default class SyncManager {
     await this.commitSync(newTreeFiles, treeSha, conflictResolutions);
   }
 
+  private isInternalSyncFile(filePath: string): boolean {
+    return (
+      filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}` ||
+      this.isLogFile(filePath)
+    );
+  }
+
+  private isLogFile(filePath: string): boolean {
+    return filePath === `${this.vault.configDir}/${LOG_FILE_NAME}`;
+  }
+
+  private isVolatileSyncArtifact(filePath: string): boolean {
+    return this.isLogFile(filePath);
+  }
+
+  private filterRemoteMetadataFiles(filesMetadata: {
+    [key: string]: FileMetadata;
+  }): {
+    [key: string]: FileMetadata;
+  } {
+    return Object.keys(filesMetadata).reduce(
+      (acc: { [key: string]: FileMetadata }, filePath: string) => {
+        if (this.isVolatileSyncArtifact(filePath)) {
+          return acc;
+        }
+        acc[filePath] = filesMetadata[filePath];
+        return acc;
+      },
+      {},
+    );
+  }
+
+  /**
+   * Remove artefactos volateis do metadata local para evitar conflitos recorrentes.
+   */
+  private async removeVolatileArtifactsFromLocalMetadata() {
+    let changed = false;
+    Object.keys(this.metadataStore.data.files).forEach((filePath: string) => {
+      if (this.isVolatileSyncArtifact(filePath)) {
+        delete this.metadataStore.data.files[filePath];
+        changed = true;
+      }
+    });
+    if (changed) {
+      await this.metadataStore.save();
+    }
+  }
+
+  /**
+   * Reconcilia SHAs do metadata remoto com a tree atual para remover referencias obsoletas.
+   */
+  private async reconcileRemoteMetadataWithTree(
+    remoteMetadataFiles: {
+      [key: string]: FileMetadata;
+    },
+    remoteRepoFiles: {
+      [key: string]: GetTreeResponseItem;
+    },
+  ) {
+    let updatedEntries = 0;
+    let updatedSha = 0;
+    Object.keys(remoteMetadataFiles).forEach((filePath: string) => {
+      const metadataFile = remoteMetadataFiles[filePath];
+      if (!metadataFile || metadataFile.deleted) {
+        return;
+      }
+      const remoteTreeFile = remoteRepoFiles[filePath];
+      if (!remoteTreeFile || !remoteTreeFile.sha) {
+        return;
+      }
+      if (metadataFile.sha !== remoteTreeFile.sha) {
+        metadataFile.sha = remoteTreeFile.sha;
+        updatedEntries += 1;
+        updatedSha += 1;
+      }
+    });
+    if (updatedEntries > 0) {
+      await this.logger.warn("Reconciled remote metadata with repository tree", {
+        updatedEntries,
+        updatedSha,
+      });
+    }
+  }
+
+  /**
+   * Tenta obter o blob pelo SHA do metadata e, em caso de 404, tenta pelo SHA atual da tree.
+   */
+  private async getRemoteFileContentWithFallback(
+    filePath: string,
+    metadataFile: FileMetadata,
+    remoteRepoFiles: {
+      [key: string]: GetTreeResponseItem;
+    },
+  ): Promise<string | null> {
+    if (!metadataFile || metadataFile.deleted) {
+      return null;
+    }
+
+    let sha = metadataFile.sha;
+    if (!sha) {
+      const remoteTreeFile = remoteRepoFiles[filePath];
+      if (!remoteTreeFile?.sha) {
+        return null;
+      }
+      sha = remoteTreeFile.sha;
+      metadataFile.sha = sha;
+    }
+
+    try {
+      const res = await this.client.getBlob({
+        sha,
+        retry: true,
+        maxRetries: 1,
+      });
+      return decodeBase64String(res.content);
+    } catch (err) {
+      if (err.status !== 404) {
+        throw err;
+      }
+    }
+
+    const remoteTreeFile = remoteRepoFiles[filePath];
+    if (!remoteTreeFile?.sha) {
+      await this.logger.warn("Blob SHA missing for remote file", {
+        filePath,
+        staleSha: sha,
+      });
+      return null;
+    }
+    if (remoteTreeFile.sha === sha) {
+      await this.logger.warn("Blob SHA not found for remote file", {
+        filePath,
+        sha,
+      });
+      return null;
+    }
+
+    await this.logger.warn("Recovering from stale blob SHA using tree SHA", {
+      filePath,
+      staleSha: sha,
+      treeSha: remoteTreeFile.sha,
+    });
+    metadataFile.sha = remoteTreeFile.sha;
+
+    const res = await this.client.getBlob({
+      sha: remoteTreeFile.sha,
+      retry: true,
+      maxRetries: 1,
+    });
+    return decodeBase64String(res.content);
+  }
+
   /**
    * Finds conflicts between local and remote files.
    * @param filesMetadata Remote files metadata
@@ -581,6 +736,8 @@ export default class SyncManager {
    */
   async findConflicts(filesMetadata: {
     [key: string]: FileMetadata;
+  }, remoteRepoFiles: {
+    [key: string]: GetTreeResponseItem;
   }): Promise<ConflictFile[]> {
     const commonFiles = Object.keys(filesMetadata).filter(
       (key) => key in this.metadataStore.data.files,
@@ -591,7 +748,7 @@ export default class SyncManager {
 
     const conflicts = await Promise.all(
       commonFiles.map(async (filePath: string) => {
-        if (filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}`) {
+        if (this.isInternalSyncFile(filePath)) {
           // The manifest file is only internal, the user must not
           // handle conflicts for this
           return null;
@@ -624,28 +781,30 @@ export default class SyncManager {
       }),
     );
 
-    return await Promise.all(
+    const resolvedConflicts = await Promise.all(
       conflicts
         .filter((filePath): filePath is string => filePath !== null)
         .map(async (filePath: string) => {
-          // Load contents in parallel
-          const [remoteContent, localContent] = await Promise.all([
-            await (async () => {
-              const res = await this.client.getBlob({
-                sha: filesMetadata[filePath].sha!,
-                retry: true,
-                maxRetries: 1,
-              });
-              return decodeBase64String(res.content);
-            })(),
-            await this.vault.adapter.read(normalizePath(filePath)),
-          ]);
+          const remoteContent = await this.getRemoteFileContentWithFallback(
+            filePath,
+            filesMetadata[filePath],
+            remoteRepoFiles,
+          );
+          if (remoteContent === null) {
+            return null;
+          }
+          const localContent = await this.vault.adapter.read(
+            normalizePath(filePath),
+          );
           return {
             filePath,
             remoteContent,
             localContent,
           };
         }),
+    );
+    return resolvedConflicts.filter(
+      (conflict): conflict is ConflictFile => conflict !== null,
     );
   }
 
@@ -988,6 +1147,9 @@ export default class SyncManager {
           // Obsidian recommends not syncing the workspace file
           return;
         }
+        if (this.isVolatileSyncArtifact(filePath)) {
+          return;
+        }
 
         this.metadataStore.data.files[filePath] = {
           path: filePath,
@@ -1011,6 +1173,7 @@ export default class SyncManager {
       };
       this.metadataStore.save();
     }
+    await this.removeVolatileArtifactsFromLocalMetadata();
     await this.logger.info("Loaded metadata");
   }
 
@@ -1035,6 +1198,9 @@ export default class SyncManager {
     }
     // Add them to the metadata store
     files.forEach((filePath: string) => {
+      if (this.isVolatileSyncArtifact(filePath)) {
+        return;
+      }
       this.metadataStore.data.files[filePath] = {
         path: filePath,
         sha: null,
