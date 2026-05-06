@@ -201,6 +201,20 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName("Automatically resolve conflicts in logs")
+      .setDesc(
+        "Automatically resolves conflicts in this plugin's logs prioritizing the local file",
+      )
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.autoResolveLogConflicts)
+          .onChange(async (value) => {
+            this.plugin.settings.autoResolveLogConflicts = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
     new Setting(containerEl).setName("Interface").setHeading();
 
     new Setting(containerEl)
