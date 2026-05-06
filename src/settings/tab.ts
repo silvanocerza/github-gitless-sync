@@ -190,9 +190,9 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Automatically resolve conflits in logs")
+      .setName("Automatically resolve conflicts in logs")
       .setDesc(
-        "Automatically resolves conflits in this plugin's logs prioritizing the local file",
+        "Automatically resolves conflicts in this plugin's logs prioritizing the local file",
       )
       .addToggle((toggle) => {
         toggle
