@@ -610,7 +610,7 @@ export default class SyncManager {
   }
 
   /**
-   * Remove artefactos volateis do metadata local para evitar conflitos recorrentes.
+   * Removes volatile artifacts from local metadata to prevent recurring conflicts.
    */
   private async removeVolatileArtifactsFromLocalMetadata() {
     let changed = false;
@@ -626,7 +626,7 @@ export default class SyncManager {
   }
 
   /**
-   * Reconcilia SHAs do metadata remoto com a tree atual para remover referencias obsoletas.
+   * Reconciles remote metadata SHAs with the current tree to remove stale references.
    */
   private async reconcileRemoteMetadataWithTree(
     remoteMetadataFiles: {
@@ -662,7 +662,7 @@ export default class SyncManager {
   }
 
   /**
-   * Tenta obter o blob pelo SHA do metadata e, em caso de 404, tenta pelo SHA atual da tree.
+   * Tries to load a blob by metadata SHA and, on 404, retries with the current tree SHA.
    */
   private async getRemoteFileContentWithFallback(
     filePath: string,
