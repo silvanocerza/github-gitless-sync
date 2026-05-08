@@ -233,11 +233,8 @@ export default class SyncManager {
           return;
         }
 
-        if (targetPath === `${this.vault.configDir}/${LOG_FILE_NAME}`) {
-          // We don't want to download the log file if the user synced it in the past.
-          // This is necessary because in the past we forgot to ignore the log file
-          // from syncing if the user enabled configs sync.
-          // To avoid downloading it we ignore it if still present in the remote repo.
+        if (this.isVolatileSyncArtifact(targetPath)) {
+          await this.logger.info("Skipping volatile sync artifact", targetPath);
           return;
         }
 
@@ -588,8 +585,23 @@ export default class SyncManager {
     return filePath === `${this.vault.configDir}/${LOG_FILE_NAME}`;
   }
 
+  private isWorkspaceFile(filePath: string): boolean {
+    return (
+      filePath === `${this.vault.configDir}/workspace.json` ||
+      filePath === `${this.vault.configDir}/workspace-mobile.json`
+    );
+  }
+
+  private shouldSyncWorkspaceFiles(): boolean {
+    return this.settings.syncConfigDir && this.settings.syncWorkspaceFiles;
+  }
+
   private isVolatileSyncArtifact(filePath: string): boolean {
-    return this.isLogFile(filePath);
+    // Keep these files out of metadata when they should not be synced.
+    return (
+      this.isLogFile(filePath) ||
+      (this.isWorkspaceFile(filePath) && !this.shouldSyncWorkspaceFiles())
+    );
   }
 
   private filterRemoteMetadataFiles(filesMetadata: {
@@ -1143,10 +1155,6 @@ export default class SyncManager {
         folders.push(...res.folders);
       }
       files.forEach((filePath: string) => {
-        if (filePath === `${this.vault.configDir}/workspace.json`) {
-          // Obsidian recommends not syncing the workspace file
-          return;
-        }
         if (this.isVolatileSyncArtifact(filePath)) {
           return;
         }
@@ -1240,6 +1248,21 @@ export default class SyncManager {
         // We don't want to remove the metadata file even if it's in the config dir
         return;
       }
+      delete this.metadataStore.data.files[filePath];
+    });
+    this.metadataStore.save();
+  }
+
+  /**
+   * Removes workspace files from local metadata.
+   * Useful when the user disables workspace files synchronization.
+   */
+  async removeWorkspaceFilesFromMetadata() {
+    await this.logger.info("Removing workspace files from metadata");
+    [
+      `${this.vault.configDir}/workspace.json`,
+      `${this.vault.configDir}/workspace-mobile.json`,
+    ].forEach((filePath: string) => {
       delete this.metadataStore.data.files[filePath];
     });
     this.metadataStore.save();

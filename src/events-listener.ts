@@ -135,16 +135,21 @@ export default class EventsListener {
     }
   }
 
+  private isWorkspaceFile(filePath: string): boolean {
+    return (
+      filePath === `${this.vault.configDir}/workspace.json` ||
+      filePath === `${this.vault.configDir}/workspace-mobile.json`
+    );
+  }
+
   private isSyncable(filePath: string) {
     if (filePath === `${this.vault.configDir}/${MANIFEST_FILE_NAME}`) {
       // Manifest file must always be synced
       return true;
-    } else if (
-      filePath === `${this.vault.configDir}/workspace.json` ||
-      filePath === `${this.vault.configDir}/workspace-mobile.json`
-    ) {
-      // Obsidian recommends not syncing the workspace files
-      return false;
+    } else if (this.isWorkspaceFile(filePath)) {
+      // Workspace files are synced only when config directory sync is enabled
+      // and the dedicated workspace-files option is enabled too.
+      return this.settings.syncConfigDir && this.settings.syncWorkspaceFiles;
     } else if (filePath === `${this.vault.configDir}/${LOG_FILE_NAME}`) {
       // Don't sync the log file, doesn't make sense
       return false;
