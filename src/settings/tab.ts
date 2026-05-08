@@ -180,6 +180,23 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           });
       });
 
+    new Setting(containerEl)
+      .setName("Sync workspace files")
+      .setDesc("Sync workspace.json and workspace-mobile.json files")
+      .addToggle((toggle) => {
+        toggle
+          .setValue(this.plugin.settings.syncWorkspaceFiles)
+          .onChange(async (value) => {
+            this.plugin.settings.syncWorkspaceFiles = value;
+            if (value && this.plugin.settings.syncConfigDir) {
+              await this.plugin.syncManager.addConfigDirToMetadata();
+            } else if (!value) {
+              await this.plugin.syncManager.removeWorkspaceFilesFromMetadata();
+            }
+            await this.plugin.saveSettings();
+          });
+      });
+
     const conflictHandlingOptions = {
       overwriteLocal: "Overwrite local file",
       ask: "Ask",
