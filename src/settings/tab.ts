@@ -8,6 +8,7 @@ import {
 } from "obsidian";
 import GitHubSyncPlugin from "src/main";
 import { copyToClipboard } from "src/utils";
+import { resolveRepoTarget } from "src/github/repo-url";
 
 export default class GitHubSyncSettingsTab extends PluginSettingTab {
   plugin: GitHubSyncPlugin;
@@ -52,31 +53,32 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
         tokenInput = text;
       });
 
-    new Setting(containerEl)
-      .setName("Owner")
-      .setDesc("Owner of the repository to sync")
-      .addText((text) =>
-        text
-          .setPlaceholder("Owner")
-          .setValue(this.plugin.settings.githubOwner)
-          .onChange(async (value) => {
-            this.plugin.settings.githubOwner = value;
-            await this.plugin.saveSettings();
-          }),
+    const repoUrlSetting = new Setting(containerEl)
+      .setName("Repository URL")
+      .setDesc(
+        "Full URL of the repository to sync, usually https://github.com/owner/repository",
       );
-
-    new Setting(containerEl)
-      .setName("Repository")
-      .setDesc("Name of the repository to sync")
-      .addText((text) =>
-        text
-          .setPlaceholder("Repository")
-          .setValue(this.plugin.settings.githubRepo)
-          .onChange(async (value) => {
-            this.plugin.settings.githubRepo = value;
-            await this.plugin.saveSettings();
-          }),
+    const errorEl = repoUrlSetting.descEl.createDiv({
+      cls: "github-sync-setting-error",
+    });
+    // An empty url = user hasn't finished the setup yet
+    const showError = () => {
+      const { githubRepoUrl, githubApiBaseUrl } = this.plugin.settings;
+      const resolved = resolveRepoTarget(githubRepoUrl, githubApiBaseUrl);
+      errorEl.setText(
+        githubRepoUrl.trim() === "" || resolved.valid ? "" : resolved.error,
       );
+    };
+    repoUrlSetting.addText((text) =>
+      text
+        .setPlaceholder("https://github.com/owner/repository")
+        .setValue(this.plugin.settings.githubRepoUrl)
+        .onChange(async (value) => {
+          this.plugin.settings.githubRepoUrl = value;
+          await this.plugin.saveSettings();
+          showError();
+        }),
+    );
 
     new Setting(containerEl)
       .setName("Repository branch")
@@ -90,6 +92,25 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           }),
       );
+
+    new Setting(containerEl)
+      .setName("API base URL")
+      .setDesc(
+        "Leave empty to derive it from the repository URL. Set it only if your " +
+          "GitHub Enterprise instance serves its REST API from another address.",
+      )
+      .addText((text) =>
+        text
+          .setPlaceholder("https://github.example.com/api/v3")
+          .setValue(this.plugin.settings.githubApiBaseUrl)
+          .onChange(async (value) => {
+            this.plugin.settings.githubApiBaseUrl = value;
+            await this.plugin.saveSettings();
+            showError();
+          }),
+      );
+
+    showError();
 
     new Setting(containerEl).setName("Sync").setHeading();
 
