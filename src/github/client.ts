@@ -2,6 +2,7 @@ import { requestUrl } from "obsidian";
 import Logger from "src/logger";
 import { GitHubSyncSettings } from "src/settings/settings";
 import { retryUntil } from "src/utils";
+import { resolveRepoTarget } from "./repo-url";
 
 export type RepoContent = {
   files: { [key: string]: GetTreeResponseItem };
@@ -59,6 +60,11 @@ class GithubAPIError extends Error {
   }
 }
 
+/**
+ * Raised when the repository to sync can't be determined from the settings
+ */
+class RepoConfigurationError extends Error {}
+
 export default class GithubClient {
   constructor(
     private settings: GitHubSyncSettings,
@@ -74,6 +80,27 @@ export default class GithubClient {
   }
 
   /**
+   * Builds the URL of a REST API endpoint of the configured repository.
+   *
+   * @param path Endpoint path relative to the repository, must start with a slash
+   * @returns The full URL to request
+   */
+  private async repoApiUrl(path: string): Promise<string> {
+    const resolved = resolveRepoTarget(
+      this.settings.githubRepoUrl,
+      this.settings.githubApiBaseUrl,
+    );
+    if (!resolved.valid) {
+      await this.logger.error("Failed to resolve repository URL", {
+        error: resolved.error,
+      });
+      throw new RepoConfigurationError(resolved.error);
+    }
+    const { apiBaseUrl, owner, repo } = resolved.target;
+    return `${apiBaseUrl}/repos/${owner}/${repo}${path}`;
+  }
+
+  /**
    * Gets the content of the repo.
    *
    * @param retry Whether to retry the request on failure (default: false)
@@ -84,10 +111,13 @@ export default class GithubClient {
     retry = false,
     maxRetries = 5,
   } = {}): Promise<RepoContent> {
+    const url = await this.repoApiUrl(
+      `/git/trees/${this.settings.githubBranch}?recursive=1`,
+    );
     const response = await retryUntil(
       async () => {
         return requestUrl({
-          url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/trees/${this.settings.githubBranch}?recursive=1`,
+          url,
           headers: this.headers(),
           throw: false,
         });
@@ -133,10 +163,11 @@ export default class GithubClient {
     retry?: boolean;
     maxRetries?: number;
   }) {
+    const url = await this.repoApiUrl("/git/trees");
     const response = await retryUntil(
       async () => {
         return requestUrl({
-          url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/trees`,
+          url,
           headers: this.headers(),
           method: "POST",
           body: JSON.stringify(tree),
@@ -180,10 +211,11 @@ export default class GithubClient {
     retry?: boolean;
     maxRetries?: number;
   }): Promise<string> {
+    const url = await this.repoApiUrl("/git/commits");
     const response = await retryUntil(
       async () => {
         return requestUrl({
-          url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/commits`,
+          url,
           headers: this.headers(),
           method: "POST",
           body: JSON.stringify({
@@ -216,10 +248,13 @@ export default class GithubClient {
    * @returns The SHA of the branch head
    */
   async getBranchHeadSha({ retry = false, maxRetries = 5 } = {}) {
+    const url = await this.repoApiUrl(
+      `/git/refs/heads/${this.settings.githubBranch}`,
+    );
     const response = await retryUntil(
       async () => {
         return requestUrl({
-          url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/refs/heads/${this.settings.githubBranch}`,
+          url,
           headers: this.headers(),
           throw: false,
         });
@@ -254,10 +289,13 @@ export default class GithubClient {
     retry?: boolean;
     maxRetries?: number;
   }) {
+    const url = await this.repoApiUrl(
+      `/git/refs/heads/${this.settings.githubBranch}`,
+    );
     const response = await retryUntil(
       async () => {
         return requestUrl({
-          url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/refs/heads/${this.settings.githubBranch}`,
+          url,
           headers: this.headers(),
           method: "PATCH",
           body: JSON.stringify({
@@ -299,10 +337,11 @@ export default class GithubClient {
     retry?: boolean;
     maxRetries?: number;
   }): Promise<CreatedBlob> {
+    const url = await this.repoApiUrl("/git/blobs");
     const response = await retryUntil(
       async () => {
         return requestUrl({
-          url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/blobs`,
+          url,
           headers: this.headers(),
           method: "POST",
           body: JSON.stringify({ content, encoding }),
@@ -342,10 +381,11 @@ export default class GithubClient {
     retry?: boolean;
     maxRetries?: number;
   }): Promise<BlobFile> {
+    const url = await this.repoApiUrl(`/git/blobs/${sha}`);
     const response = await retryUntil(
       async () => {
         return requestUrl({
-          url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/git/blobs/${sha}`,
+          url,
           headers: this.headers(),
           throw: false,
         });
@@ -386,10 +426,11 @@ export default class GithubClient {
     retry?: boolean;
     maxRetries?: number;
   }) {
+    const url = await this.repoApiUrl(`/contents/${path}`);
     const response = await retryUntil(
       async () => {
         return requestUrl({
-          url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/contents/${path}`,
+          url,
           headers: this.headers(),
           method: "PUT",
           body: JSON.stringify({
@@ -424,10 +465,11 @@ export default class GithubClient {
     retry = false,
     maxRetries = 5,
   } = {}): Promise<ArrayBuffer> {
+    const url = await this.repoApiUrl(`/zipball/${this.settings.githubBranch}`);
     const response = await retryUntil(
       async () => {
         return requestUrl({
-          url: `https://api.github.com/repos/${this.settings.githubOwner}/${this.settings.githubRepo}/zipball/${this.settings.githubBranch}`,
+          url,
           headers: this.headers(),
           method: "GET",
           throw: false,

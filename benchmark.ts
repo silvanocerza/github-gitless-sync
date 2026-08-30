@@ -47,8 +47,8 @@ async function runBenchmark(vaultRootDir: string) {
   // Settings for the sync manager
   const settings = {
     githubToken: process.env.GITHUB_TOKEN,
-    githubOwner: process.env.REPO_OWNER,
-    githubRepo: process.env.REPO_NAME,
+    githubRepoUrl: `https://github.com/${process.env.REPO_OWNER}/${process.env.REPO_NAME}`,
+    githubApiBaseUrl: "",
     githubBranch: process.env.REPO_BRANCH,
     syncConfigDir: false,
   };

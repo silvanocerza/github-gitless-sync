@@ -44,11 +44,12 @@ You must also configure the plugin settings before syncing.
 These settings are mandatory:
 
 - Your GitHub Token (see below)
-- Repository owner
-- Repository name
+- Repository URL
 - Repository branch
 
 If any of this is not set sync won't start.
+
+The repository URL is the full URL of your repository, like `https://github.com/owner/repository`. GitHub enterprise users should enter their self-hosted url e.g. `https://github.example.com/owner/repository`.
 
 ### Token
 

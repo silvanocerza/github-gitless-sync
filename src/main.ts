@@ -5,7 +5,12 @@ import {
   normalizePath,
   Notice,
 } from "obsidian";
-import { GitHubSyncSettings, DEFAULT_SETTINGS } from "./settings/settings";
+import {
+  GitHubSyncSettings,
+  DEFAULT_SETTINGS,
+  isSyncConfigured,
+  migrateSettings,
+} from "./settings/settings";
 import GitHubSyncSettingsTab from "./settings/tab";
 import SyncManager, { ConflictFile, ConflictResolution } from "./sync-manager";
 import Logger from "./logger";
@@ -41,12 +46,7 @@ export default class GitHubSyncPlugin extends Plugin {
   private conflicts: ConflictFile[] = [];
 
   async onUserEnable() {
-    if (
-      this.settings.githubToken === "" ||
-      this.settings.githubOwner === "" ||
-      this.settings.githubRepo === "" ||
-      this.settings.githubBranch === ""
-    ) {
+    if (!isSyncConfigured(this.settings)) {
       new Notice("Go to settings to configure syncing");
     }
   }
@@ -142,12 +142,7 @@ export default class GitHubSyncPlugin extends Plugin {
   }
 
   async sync() {
-    if (
-      this.settings.githubToken === "" ||
-      this.settings.githubOwner === "" ||
-      this.settings.githubRepo === "" ||
-      this.settings.githubBranch === ""
-    ) {
+    if (!isSyncConfigured(this.settings)) {
       new Notice("Sync plugin not configured");
       return;
     }
@@ -274,6 +269,9 @@ export default class GitHubSyncPlugin extends Plugin {
 
   async loadSettings() {
     this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    if (migrateSettings(this.settings)) {
+      await this.saveSettings();
+    }
   }
 
   async saveSettings() {

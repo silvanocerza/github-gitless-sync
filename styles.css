@@ -7,3 +7,8 @@
     height: 100%;
     width: 100%;
 }
+
+.invalid-setting-message:not(:empty) {
+    color: var(--text-error);
+    margin-top: var(--size-4-1);
+}
