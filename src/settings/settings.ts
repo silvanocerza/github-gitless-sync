@@ -51,22 +51,23 @@ interface LegacyRepoSettings {
  * @param settings Settings to migrate in place
  * @returns True if anything changed and the settings must be saved
  */
-export function migrateSettings(settings: GitHubSyncSettings): boolean {
-  const legacy = settings as GitHubSyncSettings & LegacyRepoSettings;
-  if (legacy.githubOwner === undefined && legacy.githubRepo === undefined) {
+export function migrateSettings(
+  settings: GitHubSyncSettings & LegacyRepoSettings,
+): boolean {
+  if (settings.githubOwner === undefined && settings.githubRepo === undefined) {
     return false;
   }
 
   // A missing owner or repository means the setup was never completed
   if (
     settings.githubRepoUrl === "" &&
-    legacy.githubOwner &&
-    legacy.githubRepo
+    settings.githubOwner &&
+    settings.githubRepo
   ) {
-    settings.githubRepoUrl = `https://github.com/${legacy.githubOwner}/${legacy.githubRepo}`;
+    settings.githubRepoUrl = `https://github.com/${settings.githubOwner}/${settings.githubRepo}`;
   }
-  delete legacy.githubOwner;
-  delete legacy.githubRepo;
+  delete settings.githubOwner;
+  delete settings.githubRepo;
   return true;
 }
 

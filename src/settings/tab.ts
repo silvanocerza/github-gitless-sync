@@ -59,9 +59,10 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
         "Full URL of the repository to sync, usually https://github.com/owner/repository",
       );
     const errorEl = repoUrlSetting.descEl.createDiv({
-      cls: "github-sync-setting-error",
+      cls: "invalid-setting-message",
     });
-    // An empty url = user hasn't finished the setup yet
+    // Errors of both this and the API base URL setting are shown in here,
+    // an empty URL only means the user hasn't finished the setup yet
     const showError = () => {
       const { githubRepoUrl, githubApiBaseUrl } = this.plugin.settings;
       const resolved = resolveRepoTarget(githubRepoUrl, githubApiBaseUrl);
@@ -79,6 +80,7 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
           showError();
         }),
     );
+    showError();
 
     new Setting(containerEl)
       .setName("Repository branch")
@@ -109,8 +111,6 @@ export default class GitHubSyncSettingsTab extends PluginSettingTab {
             showError();
           }),
       );
-
-    showError();
 
     new Setting(containerEl).setName("Sync").setHeading();
 

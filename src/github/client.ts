@@ -63,7 +63,7 @@ class GithubAPIError extends Error {
 /**
  * Raised when the repository to sync can't be determined from the settings
  */
-export class RepoConfigurationError extends Error {}
+class RepoConfigurationError extends Error {}
 
 export default class GithubClient {
   constructor(

@@ -8,7 +8,7 @@
     width: 100%;
 }
 
-.github-sync-setting-error:not(:empty) {
+.invalid-setting-message:not(:empty) {
     color: var(--text-error);
     margin-top: var(--size-4-1);
 }
