@@ -19,10 +19,25 @@ export default class EventsListener {
     // We need to register all the events we subscribe to so they can
     // be correctly detached when the plugin is unloaded too.
     // If we don't they might be left hanging and cause issues.
-    plugin.registerEvent(this.vault.on("create", this.onCreate.bind(this)));
-    plugin.registerEvent(this.vault.on("delete", this.onDelete.bind(this)));
-    plugin.registerEvent(this.vault.on("modify", this.onModify.bind(this)));
-    plugin.registerEvent(this.vault.on("rename", this.onRename.bind(this)));
+    // The handlers are async, so the metadata changes after the event fires.
+    // We refresh the status bar once the handler is done, or it would show
+    // the state from before the change.
+    const refresh = async (handler: () => Promise<void>) => {
+      await handler();
+      plugin.updateStatusBarItem();
+    };
+    plugin.registerEvent(
+      this.vault.on("create", (f) => refresh(() => this.onCreate(f))),
+    );
+    plugin.registerEvent(
+      this.vault.on("delete", (f) => refresh(() => this.onDelete(f))),
+    );
+    plugin.registerEvent(
+      this.vault.on("modify", (f) => refresh(() => this.onModify(f))),
+    );
+    plugin.registerEvent(
+      this.vault.on("rename", (f, old) => refresh(() => this.onRename(f, old))),
+    );
   }
 
   private async onCreate(file: TAbstractFile) {

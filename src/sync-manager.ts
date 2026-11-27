@@ -920,6 +920,17 @@ export default class SyncManager {
           syncTime;
       }),
     );
+    // The sync succeeded, so every file we pushed is no longer dirty.
+    // Without this the status bar would show "Outdated" forever.
+    Object.keys(treeFiles).forEach((filePath: string) => {
+      const fileMetadata = this.metadataStore.data.files[filePath];
+      if (fileMetadata) {
+        fileMetadata.dirty = false;
+      }
+    });
+    conflictResolutions.forEach((resolution) => {
+      this.metadataStore.data.files[resolution.filePath].dirty = false;
+    });
     // Now that the sync is done and we updated the content for conflicting files
     // we can save the latest metadata to disk.
     this.metadataStore.save();
@@ -1091,12 +1102,15 @@ export default class SyncManager {
    * Starts a new sync interval.
    * Raises an error if the interval is already running.
    */
-  startSyncInterval(minutes: number): number {
+  startSyncInterval(minutes: number, onSynced?: () => void): number {
     if (this.syncIntervalId) {
       throw new Error("Sync interval is already running");
     }
     this.syncIntervalId = window.setInterval(
-      async () => await this.sync(),
+      async () => {
+        await this.sync();
+        onSynced?.();
+      },
       // Sync interval is set in minutes but setInterval expects milliseconds
       minutes * 60 * 1000,
     );
@@ -1116,9 +1130,9 @@ export default class SyncManager {
   /**
    * Util function that stops and restart the sync interval
    */
-  restartSyncInterval(minutes: number) {
+  restartSyncInterval(minutes: number, onSynced?: () => void) {
     this.stopSyncInterval();
-    return this.startSyncInterval(minutes);
+    return this.startSyncInterval(minutes, onSynced);
   }
 
   async resetMetadata() {
