@@ -187,6 +187,8 @@ export default class GitHubSyncPlugin extends Plugin {
         () => this.updateStatusBarItem(),
       );
     }
+    // Show the status right away, without waiting for a sync or an event.
+    this.updateStatusBarItem();
     if (!this.vaultCreateListener) {
       this.vaultCreateListener = this.app.vault.on("create", () => {
         this.updateStatusBarItem();
@@ -285,6 +287,7 @@ export default class GitHubSyncPlugin extends Plugin {
   startSyncInterval() {
     const intervalID = this.syncManager.startSyncInterval(
       this.settings.syncInterval,
+      () => this.updateStatusBarItem(),
     );
     this.registerInterval(intervalID);
   }
@@ -295,7 +298,9 @@ export default class GitHubSyncPlugin extends Plugin {
 
   restartSyncInterval() {
     this.syncManager.stopSyncInterval();
-    this.syncManager.startSyncInterval(this.settings.syncInterval);
+    this.syncManager.startSyncInterval(this.settings.syncInterval, () =>
+      this.updateStatusBarItem(),
+    );
   }
 
   async reset() {
